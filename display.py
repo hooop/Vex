@@ -416,10 +416,10 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
     print(_build_header(error_number, total_errors))
 
     # DEBUG: affiche le JSON brut
-    import json
-    print("DEBUG JSON:")
-    print(json.dumps(analysis.get('cause_reelle'), indent=2, ensure_ascii=False))
-    print()
+    # import json
+    # print("DEBUG JSON:")
+    # print(json.dumps(analysis, indent=2, ensure_ascii=False))
+    # print()
 
     print(_build_valgrind_section(error))
 

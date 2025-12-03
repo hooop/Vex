@@ -92,10 +92,10 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
 def _build_prompt(error_data, code_context):
 
     # DEBUG affichage call trace
-    print("="*60)
-    print("CODE_CONTEXT REÇU :")
-    print(code_context)
-    print("="*60)
+    # print("="*60)
+    # print("CODE_CONTEXT REÇU :")
+    # print(code_context)
+    # print("="*60)
     
     prompt = f"""Tu es un expert en C et en gestion mémoire. Analyse le LEAK EXACT fourni.
 
@@ -175,33 +175,51 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
         * root_cause_comment : pourquoi cette ligne déclenche la fuite
         
         * contributing_codes : [
-            {{"code": "ligne exacte SANS son numéro", "comment": "explication"}},
-            {{"code": "ligne exacte SANS son numéro", "comment": "explication"}}
+            {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}},
+            {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}}
         ]
         
         RÈGLES ABSOLUES pour contributing_codes :
         
         1. INTERDICTION STRICTE : root_cause_code ne doit JAMAIS apparaître ici
-        2. UNIQUEMENT des lignes qui apparaissent AVANT root_cause dans le code source
-        3. Ordre CROISSANT obligatoire (ordre d'apparition dans le fichier)
-        4. Type 1 : TOUJOURS vide []
-        5. Vérifie que chaque code de contributing_codes ≠ root_cause_code
+        2. UNIQUEMENT des lignes qui apparaissent PHYSIQUEMENT AVANT root_cause dans le fichier
+        3. Les lignes doivent être PERTINENTES : allocation initiale, manipulation du pointeur
+        4. JAMAIS de lignes APRÈS root_cause
+        5. Type 1 : TOUJOURS vide []
         6. Type 3 avec pointeurs multiples : inclure TOUTES les assignations à NULL
            SAUF la dernière (qui est la root_cause)
+        
+        EXEMPLE CORRECT (Type 2) :
+        Si le code est :
+        42: node = create_node();
+        43: process_data(node);
+        44: node = create_node();  ← root_cause (réassignation)
+        45: finalize(node);
+        
+        Alors :
+        contributing_codes: [{{"code": "node = create_node();", "comment": "allocation initiale perdue"}}]
+        root_cause_code: "node = create_node();"
+        context_after_code: "finalize(node);"
+        
+        ❌ INTERDIT : mettre "finalize(node);" dans contributing_codes (c'est APRÈS root_cause)
       
       * context_before_code : ligne physiquement juste avant root_cause (SANS le numéro de ligne)
         → La ligne qui précède immédiatement root_cause dans le code source
-        → SAUF si déjà dans contributing_codes → alors prendre ligne précédente disponible ou laisser vide
+        → Ne doit PAS être identique à une ligne déjà dans contributing_codes
         → COPIER la ligne EXACTEMENT
         
       * context_after_code : ligne physiquement juste après root_cause (SANS le numéro de ligne)
         → La ligne qui suit immédiatement root_cause dans le code source
+        → Ne doit PAS être identique à root_cause ou à contributing_codes
         → UNE SEULE ligne
         → COPIER la ligne EXACTEMENT
 
 5. DIAGNOSTIC
     - diagnostic : 2 phrases max, factuelles et pédagogique, commençant TOUJOURS par :
        "Dans {{nom_fonction}}() ..."
+    - INTERDICTION : Les 2 phrases ne doivent PAS dire la même chose reformulée
+    - Première phrase : QUOI (le problème factuel)
+    - Deuxième phrase : POURQUOI/CONSÉQUENCE (l'impact pédagogique)
 
 6. RÉSOLUTION
     - resolution_principe : UNE seule solution précise, pas plusieurs. Doit indiquer clairement où l'insérer ("avant X", "dans la fonction Y").
