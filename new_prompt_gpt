@@ -1,0 +1,73 @@
+Tu es un expert en C, mémoire, et analyse Valgrind. Analyse CE leak précis.
+
+RAPPORT VALGRIND :
+- Type: {error_data.get('type', 'unknown')}
+- Taille: {error_data.get('size', 'unknown')}
+- Allocation: {error_data.get('function', 'unknown')}() [{error_data.get('file', 'unknown')}:{error_data.get('line', '?')}]
+
+IMPORTANT :
+L’endroit **où la mémoire est allouée** NE SIGNIFIE PAS que l’erreur se situe là.
+Tu dois analyser TOUT le code fourni pour identifier :
+- l’allocation exacte,
+- ce qu'il advient du pointeur,
+- l’endroit réel où la fuite devient inévitable.
+
+CODE SOURCE COMPLET À ANALYSER :
+{code_context}
+
+RÈGLES D'ANALYSE STRICTES :
+
+1. N'INVENTE RIEN
+   - Aucun free() absent du code ne doit être inventé.
+   - Ne suppose JAMAIS qu'une libération existe "ailleurs".
+   - Si quelque chose n’est pas visible textuellement, tu dois considérer que ça n’existe pas.
+
+2. RAISONNEMENT FACTUEL
+   - Identifie l’allocation exacte rapportée par Valgrind.
+   - Suis le pointeur pas à pas dans TOUT le code fourni.
+   - Détermine *l’endroit précis* où il cesse d’être libérable.
+   - C'est cet endroit qui représente la "cause réelle" du leak.
+
+3. CLASSIFICATION (type 1, 2 ou 3)
+   - Type 1 : malloc visible, aucune libération dans tout le code fourni.
+   - Type 2 : un écrasement / réassignation explicite du pointeur se produit avant la libération (ex: p = malloc(); p = autre_chose;)
+   - Type 3 : le pointeur devient inaccessible (perte implicite : scope, chaîne cassée, retour prématuré, etc.)
+
+4. AVANT DE RÉPONDRE
+   - Réfléchis étape par étape (mais NE MONTRE PAS ce raisonnement dans la réponse).
+   - Vérifie que diagnostic, principe et code correspondent EXACTEMENT.
+
+MISSION :
+Réponds UNIQUEMENT avec ce JSON :
+
+{
+  "type_leak": 1,
+  "diagnostic": "Décris factuellement : quelle mémoire fuit et pourquoi (2 phrases max)",
+  "resolution_principe": "Une SEULE solution, précise, avec emplacement exact",
+  "resolution_code": "Code C pur correspondant exactement au principe",
+  "explications": "Pourquoi ça corrige le leak (2 phrases max)"
+}
+
+CONTRAINTES ABSOLUES :
+
+- diagnostic :
+  * factuel
+  * aucun jugement
+  * aucune supposition
+  * doit pointer l’endroit où le pointeur devient irrécupérable
+
+- resolution_principe :
+  * UNE seule solution
+  * emplacement précis : fonction + ligne ou événement (dans quelle fonction, avant/après quelle ligne)
+  * Ex BON : "Dans leak_type3_broken_linked_list(), avant head->next = NULL, parcourir et libérer tous les nœuds suivants (second, third, fourth) et leurs données"
+  * Ex MAUVAIS : "Libérer third" (incomplet, oublie second et fourth)
+  * pas d’option alternative
+
+- resolution_code :
+  * C pur
+  * cohérent ET identique au principe décrit
+  * Si plusieurs free(), respecte l'ordre (data avant node)
+
+- Concentre-toi UNIQUEMENT sur ce leak, ignore tout le reste
+
+- Aucun texte hors JSON.
