@@ -110,6 +110,135 @@ def _build_analysis_section(analysis):
     
     return output
 
+def _find_line_number(filepath, code_to_find):
+    """
+    Cherche le numéro de ligne d'un code dans un fichier source.
+    
+    Args:
+        filepath: Chemin du fichier source
+        code_to_find: Code à chercher (sans numéro de ligne)
+    
+    Returns:
+        int: Numéro de ligne (1-indexed) ou None si pas trouvé
+    """
+    import os
+    
+    # Si le fichier n'existe pas, essayer de le trouver
+    if not os.path.exists(filepath):
+        # Essayer juste le nom du fichier dans le répertoire courant
+        basename = os.path.basename(filepath)
+        if os.path.exists(basename):
+            filepath = basename
+        else:
+            return None
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except (IOError, UnicodeDecodeError):
+        return None
+    
+    # Nettoyer le code à chercher (enlever espaces superflus)
+    code_clean = code_to_find.strip()
+    
+    # Chercher dans toutes les lignes
+    for i, line in enumerate(lines, start=1):
+        # Enlever les espaces et comparer
+        if line.strip() == code_clean:
+            return i
+    
+    return None
+
+
+def _clean_and_sort_code_lines(source_file, cause):
+    """
+    Nettoie et trie les lignes de code selon leur position réelle dans le fichier.
+    Supprime les doublons et les lignes dans le mauvais ordre.
+    
+    Args:
+        source_file: Chemin du fichier source
+        cause: Dict cause_reelle de Mistral
+    
+    Returns:
+        dict: Lignes nettoyées avec numéros de ligne
+    """
+    # 1. Trouver le numéro de la root_cause
+    root_code = cause.get('root_cause_code', '')
+    root_line = _find_line_number(source_file, root_code)
+    
+    if not root_line:
+        return None
+    
+    # 2. Traiter les contributing_codes
+    contributing = []
+    seen_codes = set()  # Pour éviter les doublons
+    
+    for contrib in cause.get('contributing_codes', []):
+        code = contrib.get('code', '').strip()
+        
+        # Ignorer si doublon
+        if code in seen_codes:
+            continue
+        
+        # Ignorer si égal à root_cause
+        if code == root_code.strip():
+            continue
+        
+        line_num = _find_line_number(source_file, code)
+        
+        # Ignorer si pas trouvé ou après root_cause
+        if not line_num or line_num >= root_line:
+            continue
+        
+        seen_codes.add(code)
+        contributing.append({
+            'line': line_num,
+            'code': code,
+            'comment': contrib.get('comment')
+        })
+    
+    # Trier par numéro de ligne croissant
+    contributing.sort(key=lambda x: x['line'])
+    
+    # 3. Traiter context_before
+    context_before = None
+    context_before_code = cause.get('context_before_code', '').strip()
+    
+    if context_before_code:
+        # Ignorer si déjà dans contributing ou égal à root
+        if context_before_code not in seen_codes and context_before_code != root_code.strip():
+            ctx_line = _find_line_number(source_file, context_before_code)
+            # Doit être avant root_cause
+            if ctx_line and ctx_line < root_line:
+                context_before = {
+                    'line': ctx_line,
+                    'code': context_before_code
+                }
+    
+    # 4. Traiter context_after
+    context_after = None
+    context_after_code = cause.get('context_after_code', '').strip()
+    
+    if context_after_code:
+        # Ignorer si déjà vu ou égal à root
+        if context_after_code not in seen_codes and context_after_code != root_code.strip():
+            ctx_line = _find_line_number(source_file, context_after_code)
+            # Doit être après root_cause
+            if ctx_line and ctx_line > root_line:
+                context_after = {
+                    'line': ctx_line,
+                    'code': context_after_code
+                }
+    
+    return {
+        'root_line': root_line,
+        'root_code': root_code,
+        'root_comment': cause.get('root_cause_comment', ''),
+        'contributing': contributing,
+        'context_before': context_before,
+        'context_after': context_after
+    }
+
 
 def _build_code_section(error, analysis):
     """
@@ -137,46 +266,83 @@ def _build_code_section(error, analysis):
     # Titre
     output = f"{GREEN}• Code concerné{RESET}\n\n"
     
-    # Fichier et fonction
-    if type_leak == 1:
-        display_file = error.get('file', 'unknown')
-        display_line = error.get('line', '?')
-        display_function = error.get('function', 'unknown')
-    else:
-        display_file = cause.get('file', error.get('file', 'unknown'))
-        display_line = cause.get('line', error.get('line', '?'))
-        display_function = cause.get('function', error.get('function', 'unknown'))
+    # Récupérer le fichier source
+    source_file = cause.get('file', error.get('file', 'unknown'))
     
-    output += f"{LIGHT_YELLOW}Fichier  : {display_file}:{display_line}\n"
+    # Nettoyer et trier les lignes
+    cleaned = _clean_and_sort_code_lines(source_file, cause)
+    
+    if not cleaned:
+        output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
+        return output
+    
+    # Fichier et fonction
+    display_function = cause.get('function', error.get('function', 'unknown'))
+    
+    output += f"{LIGHT_YELLOW}Fichier  : {source_file}:{cleaned['root_line']}\n"
     output += f"Fonction : {display_function}(){RESET}\n\n"
     
-    # Récupération du numéro de ligne de la root cause
-    root_line_number = int(display_line) if str(display_line).isdigit() else None
-    
-    # context_before
-    if not cause.get('contributing_lines') and cause.get('context_before'):
-        line_num = root_line_number - 1 if root_line_number else "?"
-        output += f"   {line_num} | {cause['context_before']}\n"
-    
-    # contributing_lines
-    if cause.get('contributing_lines'):
-        # Trier par numéro de ligne croissant
-        sorted_contribs = sorted(cause['contributing_lines'], key=lambda x: x.get('line', 0))
-        for contrib in sorted_contribs:
-            line_num = contrib.get('line', '?')
-            # output += f"   {line_num} | {contrib['code']}  {GRAY}// {contrib['comment']}{RESET}\n"
-            output += f"   {line_num} | {contrib['code']}\n"
-   
-    # root_cause_line
-    root_cause = cause['root_cause_line']
-    root_comment = cause.get('root_cause_comment', '')
-    output += f"{DARK_PINK}‣  {root_line_number if root_line_number else '?'} | {root_cause}{RESET}  {GRAY}// {root_comment}{RESET}\n"
-    
-    # context_after
-    if cause.get('context_after'):
-        line_num = root_line_number + 1 if root_line_number else "?"
-        output += f"   {line_num} | {cause['context_after']}\n"
-    
+    # Construire la liste ordonnée de toutes les lignes à afficher
+    lines_to_display = []
+
+    # 1. context_before (si pas de contributing)
+    if not cleaned['contributing'] and cleaned['context_before']:
+        lines_to_display.append({
+            'line': cleaned['context_before']['line'],
+            'code': cleaned['context_before']['code'],
+            'comment': None,
+            'is_root': False
+        })
+
+    # 2. contributing (déjà triés)
+    for contrib in cleaned['contributing']:
+        lines_to_display.append({
+            'line': contrib['line'],
+            'code': contrib['code'],
+            'comment': contrib['comment'],
+            'is_root': False
+        })
+
+    # 3. root_cause
+    lines_to_display.append({
+        'line': cleaned['root_line'],
+        'code': cleaned['root_code'],
+        'comment': cleaned['root_comment'],
+        'is_root': True
+    })
+
+    # 4. context_after
+    if cleaned['context_after']:
+        lines_to_display.append({
+            'line': cleaned['context_after']['line'],
+            'code': cleaned['context_after']['code'],
+            'comment': None,
+            'is_root': False
+        })
+
+    # Affichage avec détection des sauts
+    for i, item in enumerate(lines_to_display):
+        # Afficher "..." si saut détecté
+        if i > 0:
+            prev_line = lines_to_display[i-1]['line']
+            curr_line = item['line']
+            if curr_line - prev_line > 1:
+                output += f"   {GRAY}...{RESET}\n"
+        
+        # Afficher la ligne
+        if item['is_root']:
+            # Root cause en rose
+            output += f"{DARK_PINK}‣  {item['line']} | {item['code']}{RESET}"
+            if item['comment']:
+                output += f"  {GRAY}// {item['comment']}{RESET}"
+            output += "\n"
+        else:
+            # Ligne normale
+            output += f"   {item['line']} | {item['code']}"
+            if item['comment']:
+                output += f"  {GRAY}// {item['comment']}{RESET}"
+            output += "\n"
+
     output += "\n"
     
     return output

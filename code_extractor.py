@@ -46,7 +46,11 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
         return None
 
     # Extract and return the function
-    return ''.join(lines[start_line:end_line + 1])
+    result = []
+    for i in range(start_line, end_line + 1):
+        line_number = i + 1
+        result.append(f"{line_number}: {lines[i]}")
+    return ''.join(result)
 
 
 def _find_function_start(lines: List[str], from_line: int) -> Optional[int]:

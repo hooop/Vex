@@ -41,34 +41,6 @@ def _clean_json_response(response):
     
     return response.strip()
 
-
-def _validate_contributing_lines(analysis):
-    """
-    Filtre les contributing_lines pour ne garder que celles AVANT root_cause
-    ET qui ne sont pas la root_cause elle-même.
-    """
-    cause = analysis.get("cause_reelle")
-    if not cause:
-        return
-    
-    root_line = cause.get("line")
-    root_code = cause.get("root_cause_line", "").strip()
-    contributing = cause.get("contributing_lines", [])
-    
-    if not root_line or not contributing:
-        return
-    
-    cleaned = []
-    for contrib in contributing:
-        contrib_line = contrib.get("line", 999999)
-        contrib_code = contrib.get("code", "").strip()
-        
-        # Garde si : ligne < root ET code différent de root_cause
-        if contrib_line < root_line and contrib_code != root_code:
-            cleaned.append(contrib)
-    
-    cause["contributing_lines"] = cleaned
-
 def analyze_memory_leak(error_data, extracted_code_formatted):
     """
     Analyse un memory leak avec Mistral AI.
@@ -97,20 +69,17 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
             raise ValueError(f"type_leak invalide : {analysis['type_leak']}")
         
         # cause_reelle TOUJOURS obligatoire maintenant
-        if not analysis.get("cause_reelle") or not analysis["cause_reelle"].get("root_cause_line"):
+        if not analysis.get("cause_reelle") or not analysis["cause_reelle"].get("root_cause_code"):
             raise ValueError("cause_reelle manquante")
         
-        # Validation file/line/function pour Type 2/3
+        # Validation file/function pour Type 2/3
         if analysis["type_leak"] in [2, 3]:
             cause = analysis.get("cause_reelle", {})
-            if not cause.get("file") or not cause.get("line") or not cause.get("function"):
-                raise ValueError("cause_reelle incomplète (manque file/line/function)")
-        
-        # Validation de l'ordre chronologique
-        _validate_contributing_lines(analysis)
+            if not cause.get("file") or not cause.get("function"):
+                raise ValueError("cause_reelle incomplète (manque file/function)")
 
         return analysis
-        
+          
     except json.JSONDecodeError as e:
         print(f"DEBUG: JSONDecodeError - {e}")
         print(f"DEBUG: response existe? {response if 'response' in locals() else 'NON'}")
@@ -122,6 +91,7 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
 
 def _build_prompt(error_data, code_context):
 
+    # DEBUG affichage call trace
     print("="*60)
     print("CODE_CONTEXT REÇU :")
     print(code_context)
@@ -175,6 +145,16 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
       → Sinon, root_cause = ligne du malloc() lui-même.
     
     - Type 2 : pointeur écrasé/réassigné avant free.
+
+        ⚠️ ATTENTION VALGRIND vs ROOT CAUSE :
+        Valgrind indique toujours la ligne du malloc() qui leak.
+        Mais pour Type 2, la root_cause est la ligne OÙ LE POINTEUR EST ÉCRASÉ.
+        
+        Dans le code fourni :
+        - Valgrind pointe sur l'allocation initiale
+        - Root cause : cherche APRÈS cette ligne où le pointeur est réassigné/écrasé
+  
+        → Tu dois TROUVER dans le code la ligne de réassignation, pas répéter ce que dit Valgrind.
     
     - Type 3 : pointeur devient inaccessible (ex: lien coupé, variable hors scope).
       ⚠️ POUR LE TYPE 3 AVEC POINTEURS MULTIPLES :
@@ -189,35 +169,34 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
 4. STRUCTURE cause_reelle
     
     cause_reelle :
-        * file : fichier contenant root_cause_line
-        * line : numéro exact de root_cause_line
-        * function : fonction contenant root_cause_line
-        * root_cause_line : ligne EXACTE copiée du code
+        * file : fichier contenant root_cause
+        * function : fonction contenant root_cause
+        * root_cause_code : ligne EXACTE copiée du code (SANS le numéro de ligne)
         * root_cause_comment : pourquoi cette ligne déclenche la fuite
-      
-        * contributing_lines : [
-            {{"line": 80, "code": "ligne exacte", "comment": "..."}},
-            {{"line": 82, "code": "ligne exacte", "comment": "..."}}
+        
+        * contributing_codes : [
+            {{"code": "ligne exacte SANS son numéro", "comment": "explication"}},
+            {{"code": "ligne exacte SANS son numéro", "comment": "explication"}}
         ]
         
-        RÈGLES ABSOLUES pour contributing_lines :
+        RÈGLES ABSOLUES pour contributing_codes :
         
-        1. INTERDICTION STRICTE : root_cause_line ne doit JAMAIS apparaître ici
-        2. UNIQUEMENT des lignes dont le numéro est INFÉRIEUR à root_cause.line
-        3. Ordre CROISSANT obligatoire (ex: ligne 102, puis 104, puis 105)
+        1. INTERDICTION STRICTE : root_cause_code ne doit JAMAIS apparaître ici
+        2. UNIQUEMENT des lignes qui apparaissent AVANT root_cause dans le code source
+        3. Ordre CROISSANT obligatoire (ordre d'apparition dans le fichier)
         4. Type 1 : TOUJOURS vide []
-        5. Vérifie que chaque ligne de contributing_lines ≠ root_cause_line
+        5. Vérifie que chaque code de contributing_codes ≠ root_cause_code
         6. Type 3 avec pointeurs multiples : inclure TOUTES les assignations à NULL
-          SAUF la dernière (qui est la root_cause)
+           SAUF la dernière (qui est la root_cause)
       
-      * context_before : ligne physiquement juste avant root_cause
-        → Si root_cause = ligne 106, alors context_before = ligne 105
-        → SAUF si ligne 105 déjà dans contributing_lines → alors prendre ligne précédente disponible ou laisser vide
+      * context_before_code : ligne physiquement juste avant root_cause (SANS le numéro de ligne)
+        → La ligne qui précède immédiatement root_cause dans le code source
+        → SAUF si déjà dans contributing_codes → alors prendre ligne précédente disponible ou laisser vide
         → COPIER la ligne EXACTEMENT
         
-      * context_after : ligne physiquement juste après root_cause
-        → Si root_cause = ligne 106, alors context_after = ligne 107
-        → UNE SEULE ligne (si plusieurs instructions collées, les séparer ou prendre la première)
+      * context_after_code : ligne physiquement juste après root_cause (SANS le numéro de ligne)
+        → La ligne qui suit immédiatement root_cause dans le code source
+        → UNE SEULE ligne
         → COPIER la ligne EXACTEMENT
 
 5. DIAGNOSTIC
@@ -236,6 +215,16 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
     - Si tu proposes de libérer dans un ordre, vérifie que chaque free()
     n'utilise QUE des pointeurs encore valides
     - Privilégie toujours la solution la plus simple et sûre
+
+    RÈGLE DES ALLOCATIONS MULTIPLES :
+
+    Si une structure contient des membres alloués dynamiquement,
+    tu DOIS libérer dans cet ordre :
+    1. D'abord les membres alloués (ex: free(obj->buffer))
+    2. Puis la structure elle-même (ex: free(obj))
+
+    Vérifie dans le code fourni les allocations imbriquées.
+    Chaque malloc/strdup/calloc doit avoir son free correspondant.
 
     PRINCIPE DE SOLUTION NATURELLE (Type 2 uniquement) :
     
@@ -256,6 +245,11 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
 SECTION 4 — FORMAT SORTIE : JSON EXCLUSIF
 ====================================================
 
+IMPORTANT FORMATAGE :
+- Dans tous les champs "code" du JSON, tu dois copier UNIQUEMENT le code source
+- SANS le numéro de ligne devant (ex: "tmp = ft_strdup(str);" et PAS "42: tmp = ft_strdup(str);")
+- Le numéro de ligne va dans le champ "line", pas dans "code"
+
 Réponds STRICTEMENT avec ce JSON :
 
 {{
@@ -263,20 +257,19 @@ Réponds STRICTEMENT avec ce JSON :
   "diagnostic": "Dans nom_fonction(), explication factuelle et pédagogique (2 phrases max)",
   "cause_reelle": {{
     "file": "nom_fichier.c",
-    "line": 106,
     "function": "nom_fonction",
-    "root_cause_line": "ligne exacte copiée du code",
-    "root_cause_comment": "pourquoi cette ligne est la root cause, quelques mots pas de phrase longue",
-    "contributing_lines": [
-        {{"line": 80, "code": "ligne exacte AVANT root_cause", "comment": "explication"}},
-        {{"line": 82, "code": "ligne exacte AVANT root_cause", "comment": "explication"}}
+    "root_cause_code": "ligne exacte copiée du code (sans numéro)",
+    "root_cause_comment": "pourquoi cette ligne est la root cause",
+    "contributing_codes": [
+        {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}},
+        {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}}
     ],
-    "context_before": "ligne juste avant root_cause (ou vide)",
-    "context_after": "ligne juste après root_cause"
+    "context_before_code": "ligne juste avant root_cause (sans numéro, ou vide)",
+    "context_after_code": "ligne juste après root_cause (sans numéro)"
   }},
-  "resolution_principe": "Une seule solution précise, avec emplacement exact (pas de numéro de ligne)",
-  "resolution_code": "Code C exact et cohérent",
-  "explications": "Apport pédagogique de la solution : ce qu'il faut comprendre au-delà du fix lui-même (1-2 phrases)"
+  "resolution_principe": "Une seule solution précise",
+  "resolution_code": "Code C exact",
+  "explications": "Apport pédagogique (1-2 phrases)"
 }}
 
 ====================================================
