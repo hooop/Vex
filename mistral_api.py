@@ -100,7 +100,7 @@ def _build_prompt(error_data, code_context):
     prompt = f"""Tu es un expert en C et en gestion mémoire. Analyse le LEAK EXACT fourni.
 
 ====================================================
-SECTION 1 — INPUT
+SECTION 1 – INPUT
 ====================================================
 
 RAPPORT VALGRIND :
@@ -112,25 +112,23 @@ CODE SOURCE :
 {code_context}
 
 ====================================================
-SECTION 2 — ORDRE CHRONOLOGIQUE STRICT
+SECTION 2 – ORDRE CHRONOLOGIQUE STRICT
 ====================================================
 
 RÈGLE ABSOLUE : Tout code extrait doit respecter l'ordre du fichier source.
-
-
 
 Tu dois COPIER les lignes EXACTEMENT comme elles apparaissent,
 dans l'ordre CROISSANT de leurs numéros de ligne.
 
 ====================================================
-SECTION 3 — RÈGLES D'ANALYSE STRICTES
+SECTION 3 – RÈGLES D'ANALYSE STRICTES
 ====================================================
 
 1. INTERDIT D'INVENTER
    - Aucune fonction, aucune variable, aucune structure inventée.
    - Si tu ne vois pas free() → la mémoire n'est PAS libérée.
    - Ne déduis JAMAIS une libération implicite ou supposée ailleurs.
-   - N'interpréte jamais.
+   - N'interprète jamais.
 
 2. ANALYSE FACTUELLE UNIQUEMENT
    - Identifier l'allocation.
@@ -157,11 +155,15 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
         → Tu dois TROUVER dans le code la ligne de réassignation, pas répéter ce que dit Valgrind.
     
     - Type 3 : pointeur devient inaccessible (ex: lien coupé, variable hors scope).
+      
       ⚠️ POUR LE TYPE 3 AVEC POINTEURS MULTIPLES :
          Si plusieurs variables pointent vers la même mémoire allouée,
          le leak devient effectif quand le DERNIER pointeur valide est perdu/écrasé.
          → Identifie la ligne où PLUS AUCUN pointeur ne permet d'accéder à la mémoire.
          → Pas la première assignation à NULL, mais la DERNIÈRE.
+         → PUIS trace TOUS les blocs mémoire perdus à partir de ce point.
+         → La resolution_code doit libérer TOUS ces blocs, pas seulement le premier.
+         → Exemple : si ptr->a->b->c existe, libère les 3 structures chaînées.
 
     → Tu renvoies SEULEMENT le numéro dans "type_leak".
     → Je génère moi-même la phrase générique côté application.
@@ -201,7 +203,7 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
         root_cause_code: "node = create_node();"
         context_after_code: "finalize(node);"
         
-        ❌ INTERDIT : mettre "finalize(node);" dans contributing_codes (c'est APRÈS root_cause)
+        ✗ INTERDIT : mettre "finalize(node);" dans contributing_codes (c'est APRÈS root_cause)
       
       * context_before_code : ligne physiquement juste avant root_cause (SANS le numéro de ligne)
         → La ligne qui précède immédiatement root_cause dans le code source
@@ -214,59 +216,155 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
         → UNE SEULE ligne
         → COPIER la ligne EXACTEMENT
 
-5. DIAGNOSTIC
-    - diagnostic : 2 phrases max, factuelles et pédagogique, commençant TOUJOURS par :
-       "Dans {{nom_fonction}}() ..."
-    - INTERDICTION : Les 2 phrases ne doivent PAS dire la même chose reformulée
-    - Première phrase : QUOI (le problème factuel)
-    - Deuxième phrase : POURQUOI/CONSÉQUENCE (l'impact pédagogique)
+====================================================
+SECTION 4 – RÈGLES DE GÉNÉRATION DU CODE DE RÉSOLUTION
+====================================================
 
-6. RÉSOLUTION
-    - resolution_principe : UNE seule solution précise, pas plusieurs. Doit indiquer clairement où l'insérer ("avant X", "dans la fonction Y").
-    - resolution_code : code C correspondant EXACTEMENT à resolution_principe.
-    - Les deux doivent être cohérents.
+RÈGLES DE SÉCURITÉ MÉMOIRE :
 
-    RÈGLES DE SÉCURITÉ MÉMOIRE :
+- JAMAIS accéder à un pointeur après free()
+- JAMAIS déréférencer (ptr->...) un pointeur libéré
+- Si tu proposes de libérer dans un ordre, vérifie que chaque free()
+  n'utilise QUE des pointeurs encore valides
+- Privilégie toujours la solution la plus simple et sûre
 
-    - JAMAIS accéder à un pointeur après free()
-    - JAMAIS déréférencer (ptr->...) un pointeur libéré
-    - Si tu proposes de libérer dans un ordre, vérifie que chaque free()
-    n'utilise QUE des pointeurs encore valides
-    - Privilégie toujours la solution la plus simple et sûre
+RÈGLE DES ALLOCATIONS MULTIPLES :
 
-    RÈGLE DES ALLOCATIONS MULTIPLES :
+Si une structure contient des membres alloués dynamiquement,
+tu DOIS libérer dans cet ordre :
+1. D'abord les membres alloués (ex: free(obj->buffer))
+2. Puis la structure elle-même (ex: free(obj))
 
-    Si une structure contient des membres alloués dynamiquement,
-    tu DOIS libérer dans cet ordre :
-    1. D'abord les membres alloués (ex: free(obj->buffer))
-    2. Puis la structure elle-même (ex: free(obj))
+Vérifie dans le code fourni les allocations imbriquées.
+Chaque malloc/strdup/calloc doit avoir son free correspondant.
 
-    Vérifie dans le code fourni les allocations imbriquées.
-    Chaque malloc/strdup/calloc doit avoir son free correspondant.
+ORDRE DE LIBÉRATION CRITIQUE :
 
-    PRINCIPE DE SOLUTION NATURELLE (Type 2 uniquement) :
-    
-    Quand un pointeur est réassigné avant free (Type 2), privilégie TOUJOURS :
-    → free(ptr) AVANT la réassignation
-    → Puis faire le nouveau malloc
-    
-    Évite les variables temporaires sauf si le code montre explicitement 
-    qu'on a BESOIN de conserver les deux allocations simultanément.
-    
-    Exemple de pattern à éviter :
-    ✗ char *temp = ptr; ptr = malloc(...); free(temp);
-    
-    Exemple de pattern à privilégier :
-    ✓ free(ptr); ptr = malloc(...);
+Quand tu libères une chaîne de structures liées (A->B->C->D) :
+
+1. PRIVILÉGIE une boucle while si possible (plus robuste et maintenable)
+2. SINON libère du DERNIER au PREMIER (D, puis C, puis B, puis A)
+3. SINON sauvegarde chaque pointeur dans une variable temporaire AVANT tout free()
+
+✓ MEILLEUR (boucle) :
+while (liste != NULL) {{
+    Type *tmp = liste->next;
+    free(liste->data);
+    free(liste);
+    liste = tmp;
+}}
+
+✓ CORRECT (ordre inverse) :
+free(dernier->data);
+free(dernier);
+free(avant_dernier->data);
+free(avant_dernier);
+
+✗ INVALIDE :
+free(premier);
+free(premier->suivant);  // premier est déjà libéré !
+
+TIMING DE LA SOLUTION (Type 2 et Type 3) :
+
+Si la root_cause DÉTRUIT un accès (assignation NULL, réassignation, fin de scope),
+ta solution doit s'exécuter AVANT cette destruction.
+
+Dans resolution_principe, tu DOIS préciser explicitement :
+- "Insérer ce code AVANT la ligne qui détruit l'accès"
+- OU "Remplacer la ligne problématique par ce code"
+- OU "Supprimer la ligne problématique et ajouter ce code à la place"
+
+Ne propose JAMAIS de code qui suppose que des pointeurs détruits existent encore.
+
+PRINCIPE DE SOLUTION NATURELLE (Type 2 uniquement) :
+
+Quand un pointeur est réassigné avant free (Type 2), privilégie TOUJOURS :
+→ free(ptr) AVANT la réassignation
+→ Puis faire le nouveau malloc
+
+Évite les variables temporaires sauf si le code montre explicitement 
+qu'on a BESOIN de conserver les deux allocations simultanément.
+
+✓ CORRECT :
+free(ptr);
+ptr = malloc(...);
+
+✗ À ÉVITER :
+char *temp = ptr;
+ptr = malloc(...);
+free(temp);
 
 ====================================================
-SECTION 4 — FORMAT SORTIE : JSON EXCLUSIF
+SECTION 5 – DIAGNOSTIC
+====================================================
+
+- diagnostic : 2 phrases max, factuelles et pédagogique, commençant TOUJOURS par :
+   "Dans {{nom_fonction}}() ..."
+- INTERDICTION : Les 2 phrases ne doivent PAS dire la même chose reformulée
+- Première phrase : QUOI (le problème factuel)
+- Deuxième phrase : POURQUOI/CONSÉQUENCE (l'impact pédagogique)
+
+====================================================
+SECTION 6 — RÉSOLUTION
+====================================================
+
+RÈGLE FONDAMENTALE DE PROPRIÉTÉ MÉMOIRE :
+
+En C professionnel, le pointeur qui ALLOUE est celui qui doit LIBÉRER.
+- Si pointeur_A reçoit le malloc(), alors c'est pointeur_A qui fait le free()
+- Les autres pointeurs vers cette mémoire sont des alias/observateurs
+- On libère via le propriétaire original AVANT toute manipulation
+
+SOLUTION TYPE 3 AVEC POINTEURS MULTIPLES :
+
+Quand plusieurs pointeurs partagent la même mémoire allouée :
+1. Identifie le propriétaire (celui qui a directement reçu le retour de malloc)
+2. Libère via ce propriétaire AVANT qu'il ne soit modifié/invalidé
+3. TIMING CRITIQUE : free() doit s'exécuter AVANT que le propriétaire change
+    → Si le propriétaire est modifié/invalidé à plusieurs endroits, 
+        le free() doit être placé AVANT LA PREMIÈRE modification.
+    
+    Exemple : 
+    owner = malloc(64);
+    alias = owner;
+    
+    free(owner);      // ← ICI, avant toute modification
+    owner = NULL;     // première modification
+    alias = NULL;     // deuxième modification
+
+Exemple de formulation attendue :
+- "Libérer via [propriétaire] AVANT sa modification"
+- "Insérer free([propriétaire]) avant la ligne qui invalide ce pointeur"
+
+⚠️ COHÉRENCE OBLIGATOIRE :
+Si tu proposes free(pointeur_X), vérifie que pointeur_X est encore VALIDE
+au moment où tu proposes de l'utiliser.
+Si pointeur_X est modifié ligne N, alors free(pointeur_X) doit être AVANT ligne N.
+
+- resolution_principe : UNE seule solution précise, pas plusieurs. Doit indiquer clairement où l'insérer ("avant X", "dans la fonction Y").
+- resolution_code : code C correspondant EXACTEMENT à resolution_principe.
+- Les deux doivent être cohérents.
+
+PRÉCISION DU PLACEMENT :
+
+Ton resolution_principe DOIT être explicite sur l'emplacement :
+❌ VAGUE : "Libérer via ptr1 AVANT sa modification"
+✅ PRÉCIS : "Insérer free(ptr1); AVANT la ligne 58 (avant ptr1 = NULL;)"
+
+Format attendu : "Insérer [code] AVANT la ligne qui [action]"
+
+====================================================
+SECTION 7 – FORMAT SORTIE : JSON EXCLUSIF
 ====================================================
 
 IMPORTANT FORMATAGE :
 - Dans tous les champs "code" du JSON, tu dois copier UNIQUEMENT le code source
 - SANS le numéro de ligne devant (ex: "tmp = ft_strdup(str);" et PAS "42: tmp = ft_strdup(str);")
 - Le numéro de ligne va dans le champ "line", pas dans "code"
+
+IMPORTANT pour resolution_principe :
+- [code_ligne_reference] = la ligne EXISTANTE du code source (celle avant laquelle insérer)
+- PAS le code de la solution (qui est dans resolution_code)
 
 Réponds STRICTEMENT avec ce JSON :
 
@@ -285,13 +383,13 @@ Réponds STRICTEMENT avec ce JSON :
     "context_before_code": "ligne juste avant root_cause (sans numéro, ou vide)",
     "context_after_code": "ligne juste après root_cause (sans numéro)"
   }},
-  "resolution_principe": "Une seule solution précise",
+  "resolution_principe": "Dans [nom_fonction] insérer le code ci-dessous avant la ligne [code_ligne_reference] qui [action_invalidante]",
   "resolution_code": "Code C exact",
   "explications": "Apport pédagogique (1-2 phrases)"
 }}
 
 ====================================================
-SECTION 5 — RÈGLES FINALES
+SECTION 8 – RÈGLES FINALES
 ====================================================
 - AUCUN texte en dehors du JSON.
 - Pas d'interprétation. Pas de restructuration du code.
@@ -299,11 +397,6 @@ SECTION 5 — RÈGLES FINALES
 - RESPECTE L'ORDRE CHRONOLOGIQUE DU FICHIER SOURCE.
 - Pour Type 3 avec pointeurs multiples : root_cause = DERNIÈRE ligne qui perd l'accès.
 """
-
-    # Affichage du prompt :
-    # print("="*60)
-    # print(prompt)
-    # print("="*60)
 
     return prompt
 

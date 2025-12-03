@@ -62,8 +62,10 @@ def _build_valgrind_section(error):
     
     output += f"{LIGHT_YELLOW}{bytes_info}\n"
     
-    # Ligne malloc (système)
-    output += "    at 0x[...]: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n"
+    # Ligne malloc (système) - utilise celle capturée ou fallback
+    allocation = error.get('allocation_line', 
+        "    at 0x[...]: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)")
+    output += f"{allocation}\n"
     
     # Backtrace dans l'ordre Valgrind (allocation → main)
     if error.get('backtrace'):
@@ -327,7 +329,7 @@ def _build_code_section(error, analysis):
             prev_line = lines_to_display[i-1]['line']
             curr_line = item['line']
             if curr_line - prev_line > 1:
-                output += f"   {GRAY}...{RESET}\n"
+                output += f"   {GRAY}···{RESET}\n"
         
         # Afficher la ligne
         if item['is_root']:

@@ -194,41 +194,36 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
     SYSTEM_FUNCTIONS = {'malloc', 'calloc', 'realloc', 'free', 'strdup',
                         'memcpy', 'memmove', 'memset'}
 
-    # On prend un extrait
     excerpt = report[start_pos:start_pos + 1000]
-
-    # IMPORTANT: S'arrêter à la première ligne vide après le début
-    # Les blocs Valgrind sont séparés par des lignes vides
     lines = excerpt.split('\n')
     relevant_lines = []
     started = False
 
     for line in lines:
-        # Si on trouve "at" ou "by", on commence à capturer
         if re.search(r'(?:at|by)\s+0x[0-9A-Fa-f]+:', line):
             relevant_lines.append(line)
             started = True
-        # Si ligne vide et qu'on a déjà commencé, on s'arrête
         elif started and (line.strip() == '' or re.match(r'==\d+==\s*$', line)):
             break
-        # Sinon on continue si démarré
         elif started:
             relevant_lines.append(line)
 
-    # Reconstruire l'extrait pertinent
     excerpt = '\n'.join(relevant_lines)
-
-    # Pattern pour capturer "at" ET "by"
     location_pattern = r"(?:at|by)\s+0x[0-9A-Fa-f]+:\s+(\w+)\s+\(([^:)]+):(\d+)\)"
-
-    # Trouver toutes les correspondances
     matches = re.finditer(location_pattern, excerpt)
 
     backtrace = []
+    allocation_line = None  # NOUVEAU : pour stocker la ligne d'allocation
+    
     for match in matches:
         function = match.group(1)
         file = match.group(2)
         line = int(match.group(3))
+
+        # NOUVEAU : Capturer la première fonction système (l'allocation)
+        if allocation_line is None and function in SYSTEM_FUNCTIONS:
+            allocation_line = match.group(0)  # Garde la ligne complète
+            continue  # On la filtre quand même du backtrace
 
         # Filtrer les fonctions système ET les fichiers système
         if function in SYSTEM_FUNCTIONS:
@@ -242,48 +237,24 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
             "line": line
         })
 
-    # Inverser la backtrace pour avoir l'ordre logique (main -> ... -> fonction_leak)
     backtrace.reverse()
 
-    # Si on a trouvé au moins une entrée
     if backtrace:
-        # Maintenant la DERNIÈRE entrée est celle où le malloc a été fait
         last = backtrace[-1]
         return {
             "function": last["function"],
             "file": last["file"],
             "line": last["line"],
-            "backtrace": backtrace
+            "backtrace": backtrace,
+            "allocation_line": allocation_line  # NOUVEAU
         }
 
-    # Si on ne trouve rien, retour de valeurs par défaut
     return {
         "function": "unknown",
         "file": "unknown",
         "line": 0,
-        "backtrace": []
-    }
-
-    # Inverser la backtrace pour avoir l'ordre logique (main -> ... -> fonction_leak)
-    backtrace.reverse()
-
-    # Si on a trouvé au moins une entrée
-    if backtrace:
-        # Maintenant la DERNIÈRE entrée est celle où le malloc a été fait
-        last = backtrace[-1]
-        return {
-            "function": last["function"],
-            "file": last["file"],
-            "line": last["line"],
-            "backtrace": backtrace
-        }
-
-    # Si on ne trouve rien, retour de valeurs par défaut
-    return {
-        "function": "unknown",
-        "file": "unknown",
-        "line": 0,
-        "backtrace": []
+        "backtrace": [],
+        "allocation_line": allocation_line  # NOUVEAU
     }
 
 
