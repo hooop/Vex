@@ -41,6 +41,34 @@ def _clean_json_response(response):
     
     return response.strip()
 
+
+def _validate_contributing_lines(analysis):
+    """
+    Filtre les contributing_lines pour ne garder que celles AVANT root_cause
+    ET qui ne sont pas la root_cause elle-même.
+    """
+    cause = analysis.get("cause_reelle")
+    if not cause:
+        return
+    
+    root_line = cause.get("line")
+    root_code = cause.get("root_cause_line", "").strip()
+    contributing = cause.get("contributing_lines", [])
+    
+    if not root_line or not contributing:
+        return
+    
+    cleaned = []
+    for contrib in contributing:
+        contrib_line = contrib.get("line", 999999)
+        contrib_code = contrib.get("code", "").strip()
+        
+        # Garde si : ligne < root ET code différent de root_cause
+        if contrib_line < root_line and contrib_code != root_code:
+            cleaned.append(contrib)
+    
+    cause["contributing_lines"] = cleaned
+
 def analyze_memory_leak(error_data, extracted_code_formatted):
     """
     Analyse un memory leak avec Mistral AI.
@@ -78,6 +106,9 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
             if not cause.get("file") or not cause.get("line") or not cause.get("function"):
                 raise ValueError("cause_reelle incomplète (manque file/line/function)")
         
+        # Validation de l'ordre chronologique
+        _validate_contributing_lines(analysis)
+
         return analysis
         
     except json.JSONDecodeError as e:
@@ -165,8 +196,8 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
         * root_cause_comment : pourquoi cette ligne déclenche la fuite
       
         * contributing_lines : [
-            {{"code": "ligne exacte", "comment": "..."}},
-            ...
+            {{"line": 80, "code": "ligne exacte", "comment": "..."}},
+            {{"line": 82, "code": "ligne exacte", "comment": "..."}}
         ]
         
         RÈGLES ABSOLUES pour contributing_lines :
@@ -229,15 +260,15 @@ Réponds STRICTEMENT avec ce JSON :
     "root_cause_line": "ligne exacte copiée du code",
     "root_cause_comment": "pourquoi cette ligne est la root cause",
     "contributing_lines": [
-      {{"code": "ligne exacte AVANT root_cause", "comment": "explication"}},
-      {{"code": "ligne exacte AVANT root_cause", "comment": "explication"}}
+        {{"line": 80, "code": "ligne exacte AVANT root_cause", "comment": "explication"}},
+        {{"line": 82, "code": "ligne exacte AVANT root_cause", "comment": "explication"}}
     ],
     "context_before": "ligne juste avant root_cause (ou vide)",
     "context_after": "ligne juste après root_cause"
   }},
   "resolution_principe": "Une seule solution précise, avec emplacement exact (pas de numéro de ligne)",
   "resolution_code": "Code C exact et cohérent",
-  "explications": "Apport pédagogique de la solution : ce que l'étudiant doit comprendre au-delà du fix lui-même (1-2 phrases)"
+  "explications": "Apport pédagogique de la solution : ce qu'il faut comprendre au-delà du fix lui-même (1-2 phrases)"
 }}
 
 ====================================================

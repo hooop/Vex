@@ -160,10 +160,13 @@ def _build_code_section(error, analysis):
     
     # contributing_lines
     if cause.get('contributing_lines'):
-        for i, contrib in enumerate(cause['contributing_lines']):
-            line_num = root_line_number - len(cause['contributing_lines']) + i if root_line_number else "?"
-            output += f"   {line_num} | {contrib['code']}  {GRAY}// {contrib['comment']}{RESET}\n"
-    
+        # Trier par numéro de ligne croissant
+        sorted_contribs = sorted(cause['contributing_lines'], key=lambda x: x.get('line', 0))
+        for contrib in sorted_contribs:
+            line_num = contrib.get('line', '?')
+            # output += f"   {line_num} | {contrib['code']}  {GRAY}// {contrib['comment']}{RESET}\n"
+            output += f"   {line_num} | {contrib['code']}\n"
+   
     # root_cause_line
     root_cause = cause['root_cause_line']
     root_comment = cause.get('root_cause_comment', '')
