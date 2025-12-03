@@ -6,7 +6,7 @@ build:
 
 # Compile leaky.c puis lance VEX
 run:
-	docker run --platform linux/amd64 -it --rm -v $(PWD):/app vex /bin/bash -c "gcc -g -o leaky leaky.c && ./vex.py ./leaky"
+	docker run --platform linux/amd64 -it --rm -v $(PWD):/app vex /bin/bash -c "gcc -g -o leaky2 leaky2.c && ./vex.py ./leaky2"
 
 # Rebuild complet (clean + build)
 rebuild: clean build

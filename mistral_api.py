@@ -156,14 +156,39 @@ SECTION 3 – RÈGLES D'ANALYSE STRICTES
     
     - Type 3 : pointeur devient inaccessible (ex: lien coupé, variable hors scope).
       
-      ⚠️ POUR LE TYPE 3 AVEC POINTEURS MULTIPLES :
-         Si plusieurs variables pointent vers la même mémoire allouée,
-         le leak devient effectif quand le DERNIER pointeur valide est perdu/écrasé.
-         → Identifie la ligne où PLUS AUCUN pointeur ne permet d'accéder à la mémoire.
-         → Pas la première assignation à NULL, mais la DERNIÈRE.
-         → PUIS trace TOUS les blocs mémoire perdus à partir de ce point.
-         → La resolution_code doit libérer TOUS ces blocs, pas seulement le premier.
-         → Exemple : si ptr->a->b->c existe, libère les 3 structures chaînées.
+        ⚠️ POUR LE TYPE 3 AVEC POINTEURS MULTIPLES :
+            Si plusieurs variables pointent vers la même mémoire allouée,
+            le leak devient effectif quand le DERNIER pointeur valide est perdu/écrasé.
+            → Identifie la ligne où PLUS AUCUN pointeur ne permet d'accéder à la mémoire.
+            → Pas la première assignation à NULL, mais la DERNIÈRE.
+            → PUIS trace TOUS les blocs mémoire perdus à partir de ce point.
+            → La resolution_code doit libérer TOUS ces blocs, pas seulement le premier.
+            → Exemple : si ptr->a->b->c existe, libère les 3 structures chaînées.
+            
+        ⚠️ CAS SPÉCIAL - CHAÎNE CASSÉE (ptr->next = NULL ou ptr->next = autre) :
+            Si la root_cause coupe un lien dans une liste chaînée :
+            
+            ÉTAPE 1 - Identifier ce qui est perdu :
+            → Quand tu fais "element->next = NULL" ou "element->next = autre_chose"
+            → TOUT ce qui était accessible via l'ancien "element->next" devient perdu
+            → Si l'ancienne chaîne était : element -> X -> Y -> Z
+            → Alors X, Y et Z sont perdus
+            
+            ÉTAPE 2 - Solution :
+            → Sauvegarder l'ancien "element->next" dans une variable temporaire AVANT la coupure
+            → Parcourir et libérer TOUS les éléments de cette sous-chaîne avec une boucle
+            → PUIS faire la coupure du lien
+            
+            Structure de code type :
+            Type *temp = element->next;
+            while (temp) {{
+                Type *suivant = temp->next;
+                free(temp->membre_alloue);
+                free(temp);
+                temp = suivant;
+            }}
+            element->next = NULL;
+
 
     → Tu renvoies SEULEMENT le numéro dans "type_leak".
     → Je génère moi-même la phrase générique côté application.
