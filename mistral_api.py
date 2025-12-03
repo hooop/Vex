@@ -229,6 +229,14 @@ SECTION 3 — RÈGLES D'ANALYSE STRICTES
     - resolution_code : code C correspondant EXACTEMENT à resolution_principe.
     - Les deux doivent être cohérents.
 
+    RÈGLES DE SÉCURITÉ MÉMOIRE :
+
+    - JAMAIS accéder à un pointeur après free()
+    - JAMAIS déréférencer (ptr->...) un pointeur libéré
+    - Si tu proposes de libérer dans un ordre, vérifie que chaque free()
+    n'utilise QUE des pointeurs encore valides
+    - Privilégie toujours la solution la plus simple et sûre
+
     PRINCIPE DE SOLUTION NATURELLE (Type 2 uniquement) :
     
     Quand un pointeur est réassigné avant free (Type 2), privilégie TOUJOURS :
@@ -258,7 +266,7 @@ Réponds STRICTEMENT avec ce JSON :
     "line": 106,
     "function": "nom_fonction",
     "root_cause_line": "ligne exacte copiée du code",
-    "root_cause_comment": "pourquoi cette ligne est la root cause",
+    "root_cause_comment": "pourquoi cette ligne est la root cause, quelques mots pas de phrase longue",
     "contributing_lines": [
         {{"line": 80, "code": "ligne exacte AVANT root_cause", "comment": "explication"}},
         {{"line": 82, "code": "ligne exacte AVANT root_cause", "comment": "explication"}}
