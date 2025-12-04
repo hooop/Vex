@@ -116,37 +116,34 @@ def _build_analysis_section(analysis):
 def _find_line_number(filepath, code_to_find):
     """
     Cherche le numéro de ligne d'un code dans un fichier source.
-    
-    Args:
-        filepath: Chemin du fichier source
-        code_to_find: Code à chercher (sans numéro de ligne)
-    
-    Returns:
-        int: Numéro de ligne (1-indexed) ou None si pas trouvé
     """
     import os
     
-    # Si le fichier n'existe pas, essayer de le trouver
-    if not os.path.exists(filepath):
-        # Essayer juste le nom du fichier dans le répertoire courant
-        basename = os.path.basename(filepath)
-        if os.path.exists(basename):
-            filepath = basename
-        else:
-            return None
+    # Liste des chemins à essayer
+    possible_paths = [
+        filepath,                           # leaky.c
+        os.path.join("src", filepath),      # src/leaky.c
+        os.path.join("../src", filepath),   # ../src/leaky.c
+    ]
     
+    # Essayer chaque chemin
+    for path in possible_paths:
+        if os.path.exists(path):
+            filepath = path
+            break
+    else:
+        return None  # Aucun chemin trouvé
+    
+    # Reste du code inchangé (lecture du fichier)
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     except (IOError, UnicodeDecodeError):
         return None
     
-    # Nettoyer le code à chercher (enlever espaces superflus)
     code_clean = code_to_find.strip()
     
-    # Chercher dans toutes les lignes
     for i, line in enumerate(lines, start=1):
-        # Enlever les espaces et comparer
         if line.strip() == code_clean:
             return i
     
@@ -401,6 +398,7 @@ def _build_explications_section(analysis):
     
     return output
 
+
 def display_analysis(error, analysis, error_number=1, total_errors=1):
     """
     Affiche une analyse de façon formatée dans le terminal.
@@ -440,3 +438,43 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
     print(_build_solution_section(analysis))
 
     print(_build_explications_section(analysis))
+
+def display_leak_menu():
+    """
+    Affiche le menu après l'analyse d'un leak.
+    
+    Returns:
+        str: "verify", "skip", ou "quit"
+    """
+    import sys
+    
+    MAGENTA = "\033[38;5;219m"
+    DARK_GREEN = "\033[38;5;49m"
+    RESET = "\033[0m"
+    
+    print()
+    print(MAGENTA + "[v]" + RESET + " Vérifier (relancer Valgrind)")
+    print(MAGENTA + "[s]" + RESET + " Passer au suivant")
+    print(MAGENTA + "[q]" + RESET + " Quitter")
+    print()
+    
+    while True:
+        choice = input(DARK_GREEN + "vex > " + RESET).strip().lower()
+        
+        if choice == "v":
+            os.system('clear')
+            return "verify"
+        elif choice == "s":
+            os.system('clear')
+            return "skip"
+        elif choice == "q":
+            os.system('clear')
+            return "quit"
+        else:
+            # Message d'erreur en dessous
+            print("Choix invalide. Tapez v, s ou q.")
+            # Remonter d'une ligne
+            sys.stdout.write("\033[F")
+            # Effacer la ligne du prompt
+            sys.stdout.write("\r" + " " * 80 + "\r")
+            sys.stdout.flush()

@@ -13,47 +13,55 @@ import os
 from typing import Dict
 
 
-def rebuild_project() -> Dict[str, any]:
+def rebuild_project(executable_path):
     """
-    Recompile the user's project by running 'make'.
-
-    Looks for a Makefile in the current directory and executes it.
-    Captures compilation output to display errors if any.
-
+    Recompile le projet de l'utilisateur.
+    
+    Args:
+        executable_path: Chemin vers l'exécutable (ex: "./test_mistral/leaky")
+    
     Returns:
-        dict: {
-            'success': bool - True if compilation succeeded
-            'output': str - Compilation output (for error display)
-        }
+        dict: {'success': bool, 'output': str}
     """
-    # Check if Makefile exists
-    if not os.path.exists('Makefile'):
+    import os
+    import subprocess
+    
+    # Extraire le dossier de l'exécutable
+    project_dir = os.path.dirname(executable_path)
+    
+    # Si pas de dossier (ex: "./leaky"), utiliser le répertoire courant
+    if not project_dir:
+        project_dir = "."
+    
+    # Chercher le Makefile dans ce dossier
+    makefile_path = os.path.join(project_dir, "Makefile")
+    
+    if not os.path.exists(makefile_path):
         return {
             'success': False,
             'output': (
                 "⚠️  Makefile requis pour la vérification automatique\n\n"
-                "Créez un Makefile dans votre projet, puis relancez [v]\n"
+                f"Créez un Makefile dans {project_dir}, puis relancez [v]\n"
                 "(ou utilisez [s] pour passer au leak suivant)"
             )
         }
-
+    
     try:
-        # Execute make
+        # Exécuter make depuis le dossier du projet
         result = subprocess.run(
             ['make'],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            cwd=project_dir  # ← Exécuter depuis ce dossier
         )
-
-        # Check return code
+        
         if result.returncode == 0:
             return {
                 'success': True,
                 'output': '✅ Compilation réussie'
             }
         else:
-            # Compilation failed
             return {
                 'success': False,
                 'output': (
@@ -61,7 +69,7 @@ def rebuild_project() -> Dict[str, any]:
                     f"{result.stderr if result.stderr else result.stdout}"
                 )
             }
-
+    
     except subprocess.TimeoutExpired:
         return {
             'success': False,
@@ -70,7 +78,7 @@ def rebuild_project() -> Dict[str, any]:
                 "Vérifiez votre Makefile"
             )
         }
-
+    
     except Exception as e:
         return {
             'success': False,

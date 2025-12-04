@@ -15,8 +15,9 @@ from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError
 from valgrind_parser import parse_valgrind_report
 from code_extractor import extract_call_stack
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
-from display import display_analysis
+from display import display_analysis, display_leak_menu  # ← AJOUT display_leak_menu
 from welcome import clear_screen, display_logo, start_spinner, stop_spinner, display_summary, display_menu
+from builder import rebuild_project  # ← AJOUT builder
 
 
 def print_error(message: str) -> None:
@@ -77,7 +78,7 @@ def main() -> int:
         t = start_spinner("Lancement de Valgrind")
         valgrind_output = run_valgrind(full_command)
         stop_spinner(t, "Lancement de Valgrind")
-
+        
         # Étape 2: Parsing du rapport avec spinner
         t = start_spinner("Parsing du rapport")
         parsed_data = parse_valgrind_report(valgrind_output)
@@ -103,49 +104,130 @@ def main() -> int:
             print("\n👋 Au revoir !\n")
             return 0
 
-        # L'utilisateur a choisi de commencer
-        clear_screen()
-
-        # Étape 3: Extraction du code avec spinner
-        t = start_spinner("Extraction du code source")
-        for error in parsed_errors:
-            if 'backtrace' in error and error['backtrace']:
-                error['extracted_code'] = extract_call_stack(error['backtrace'])
-            else:
-                error['extracted_code'] = []
-        stop_spinner(t, "Extraction du code source")
-
-        # Étape 4: Analyse avec Mistral AI
-        t = start_spinner("Interrogation de Mistral AI")
-        # Note : on garde le spinner jusqu'à la première analyse
-        # puis on l'arrête avant d'afficher
+        # ========================================
+        # DÉBUT DE LA BOUCLE D'ANALYSE
+        # ========================================
         
-        for i, error in enumerate(parsed_errors, 1):
-            try:
-                # Analyse de l'erreur
-                analysis = analyze_with_mistral(error)
+        # Stockage du nombre initial de leaks
+        initial_leak_count = len(parsed_errors)
+        
+        # Variable pour savoir si on doit tout re-analyser
+        need_reanalysis = False
+        
+        while True:
+            # Si besoin de re-analyser (après [v])
+            if need_reanalysis:
+                clear_screen()
+                display_logo()
                 
-                # Arrêter le spinner avant le premier affichage
-                if i == 1:
-                    stop_spinner(t, "Interrogation de Mistral AI")
+                # Re-lancer Valgrind
+                t = start_spinner("Lancement de Valgrind")
+                valgrind_output = run_valgrind(full_command)
+                stop_spinner(t, "Lancement de Valgrind")
+                
+                # Re-parser
+                t = start_spinner("Parsing du rapport")
+                parsed_data = parse_valgrind_report(valgrind_output)
+                stop_spinner(t, "Parsing du rapport")
+                
+                # Vérifier s'il reste des leaks
+                new_leak_count = len(parsed_data.get('leaks', []))
+                
+                if new_leak_count == 0:
+                    print(f"\n🎉 Tous les leaks sont résolus ! ({initial_leak_count} → 0)\n")
+                    return 0
+                
+                # Afficher le delta
+                if new_leak_count < initial_leak_count:
+                    print(f"\n✅ {initial_leak_count - new_leak_count} leak(s) résolu(s) !")
+                    print(f"Il reste {new_leak_count} leak(s)\n")
+                else:
+                    print(f"\n⚠️  Toujours {new_leak_count} leak(s) détecté(s)\n")
+                
+                # Mettre à jour les données
+                parsed_errors = parsed_data.get('leaks', [])
+                initial_leak_count = new_leak_count
+                
+                # Re-extraire le code
+                for error in parsed_errors:
+                    if 'backtrace' in error and error['backtrace']:
+                        error['extracted_code'] = extract_call_stack(error['backtrace'])
+                    else:
+                        error['extracted_code'] = []
+                
+                need_reanalysis = False
+                
+                # Pause avant de continuer
+                input("[Appuyez sur Entrée pour continuer...]")
+            
+            # Si première analyse, extraire le code
+            if not need_reanalysis and not parsed_errors[0].get('extracted_code'):
+                clear_screen()
+                t = start_spinner("Extraction du code source")
+                for error in parsed_errors:
+                    if 'backtrace' in error and error['backtrace']:
+                        error['extracted_code'] = extract_call_stack(error['backtrace'])
+                    else:
+                        error['extracted_code'] = []
+                stop_spinner(t, "Extraction du code source")
+            
+            # Analyser chaque leak
+            t = start_spinner("Interrogation de Mistral AI")
+            
+            for i, error in enumerate(parsed_errors, 1):
+                try:
+                    # Analyse de l'erreur
+                    analysis = analyze_with_mistral(error)
                     
-                # Affichage
-                display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
+                    # Arrêter le spinner avant le premier affichage
+                    if i == 1:
+                        stop_spinner(t, "Interrogation de Mistral AI")
+                    
+                    # Affichage
+                    display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
+                    
+                    # DEBUG
+                    # print(f"\nDEBUG error['file']: {error.get('file')}")
+                    # print(f"DEBUG cause file: {analysis.get('cause_reelle', {}).get('file')}")
 
-                # Si ce n'est pas le dernier leak, attendre l'utilisateur
-                if i < len(parsed_errors):
-                    input("\n[Appuyez sur Entrée pour voir le leak suivant...]")
-                    print("\n" + "="*60 + "\n")
-
-            except MistralAPIError as e:
-                if i == 1:
-                    stop_spinner(t, "Interrogation de Mistral AI")
-                print_error(f"Erreur lors de l'analyse de l'erreur #{i}: {e}")
-                continue
-
-        print("="*60)
-        print("\n✨ Analyse terminée !\n")
-        return 0
+                    # Menu après chaque leak
+                    choice = display_leak_menu()
+                    
+                    if choice == "verify":
+                        # Recompiler
+                        result = rebuild_project(executable)
+                        if not result['success']:
+                            print(result['output'])
+                            input("\n[Appuyez sur Entrée pour continuer...]")
+                            continue
+                        
+                        # Déclencher re-analyse
+                        need_reanalysis = True
+                        break  # Sortir de la boucle for
+                    
+                    elif choice == "skip":
+                        # Passer au suivant
+                        if i < len(parsed_errors):
+                            continue
+                        else:
+                            # C'était le dernier leak
+                            print("\n✨ Analyse terminée !\n")
+                            return 0
+                    
+                    elif choice == "quit":
+                        print("\n👋 Au revoir !\n")
+                        return 0
+                
+                except MistralAPIError as e:
+                    if i == 1:
+                        stop_spinner(t, "Interrogation de Mistral AI")
+                    print_error(f"Erreur lors de l'analyse de l'erreur #{i}: {e}")
+                    continue
+            
+            # Si on a fini tous les leaks sans [v]
+            if not need_reanalysis:
+                print("\n✨ Analyse terminée !\n")
+                return 0
 
     except ExecutableNotFoundError as e:
         print_error(str(e))

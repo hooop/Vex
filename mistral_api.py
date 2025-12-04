@@ -50,7 +50,7 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
     try:
         prompt = _build_prompt(error_data, extracted_code_formatted)
         response = _call_mistral_api(prompt)
-
+        
         # Nettoie la réponse
         cleaned = _clean_json_response(response)
         
@@ -77,7 +77,19 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
             cause = analysis.get("cause_reelle", {})
             if not cause.get("file") or not cause.get("function"):
                 raise ValueError("cause_reelle incomplète (manque file/function)")
-
+        
+        # Validation owner pour Type 3
+        if analysis["type_leak"] == 3:
+            cause = analysis.get("cause_reelle", {})
+            owner = cause.get("owner", "")
+            # resolution_code = analysis.get("resolution_code", "")
+            
+            if not owner:
+                raise ValueError("Type 3 : owner manquant dans cause_reelle")
+            
+            # if f"free({owner})" not in resolution_code:
+            #     raise ValueError(f"Type 3 : resolution_code doit contenir free({owner})")
+        
         return analysis
           
     except json.JSONDecodeError as e:
@@ -161,10 +173,27 @@ SECTION 3 – RÈGLES D'ANALYSE STRICTES
             le leak devient effectif quand le DERNIER pointeur valide est perdu/écrasé.
             → Identifie la ligne où PLUS AUCUN pointeur ne permet d'accéder à la mémoire.
             → Pas la première assignation à NULL, mais la DERNIÈRE.
+            
+            RÈGLE ABSOLUE pour la solution :
+                → Identifie le PROPRIÉTAIRE (la variable qui a directement reçu le malloc)
+                → La solution doit TOUJOURS libérer via le propriétaire
+                → Même si root_cause invalide un alias, la solution utilise le propriétaire
+                → Timing : free(propriétaire) doit être AVANT la PREMIÈRE modification de ce propriétaire
+                
+                Exemple générique : 
+                owner = malloc(X);     ← propriétaire
+                alias_a = owner;
+                alias_b = owner;
+                owner = NULL;          ← PREMIÈRE modification du propriétaire
+                alias_a = NULL;
+                alias_b = NULL;        ← root_cause
+                
+                Solution : free(owner); AVANT "owner = NULL;"
+
             → PUIS trace TOUS les blocs mémoire perdus à partir de ce point.
             → La resolution_code doit libérer TOUS ces blocs, pas seulement le premier.
             → Exemple : si ptr->a->b->c existe, libère les 3 structures chaînées.
-            
+
         ⚠️ CAS SPÉCIAL - CHAÎNE CASSÉE (ptr->next = NULL ou ptr->next = autre) :
             Si la root_cause coupe un lien dans une liste chaînée :
             
@@ -198,6 +227,7 @@ SECTION 3 – RÈGLES D'ANALYSE STRICTES
     cause_reelle :
         * file : fichier contenant root_cause
         * function : fonction contenant root_cause
+        * owner : (Type 3 uniquement) nom de la variable propriétaire (celle qui a reçu le malloc)
         * root_cause_code : ligne EXACTE copiée du code (SANS le numéro de ligne)
         * root_cause_comment : pourquoi cette ligne déclenche la fuite
         
@@ -240,6 +270,28 @@ SECTION 3 – RÈGLES D'ANALYSE STRICTES
         → Ne doit PAS être identique à root_cause ou à contributing_codes
         → UNE SEULE ligne
         → COPIER la ligne EXACTEMENT
+
+====================================================
+SECTION 3.5 — CHOIX DES VARIABLES DANS resolution_code
+====================================================
+
+RÈGLE CRITIQUE : resolution_code doit utiliser une variable ENCORE VALIDE.
+
+Au moment d'insérer le free() (AVANT root_cause_code) :
+→ Les lignes de contributing_codes sont DÉJÀ exécutées
+→ Donc si contributing_codes contient "variable_x = NULL;" alors variable_x est INUTILISABLE
+→ Utilise la variable de root_cause_code (qui n'est pas encore NULL)
+
+Exemple :
+- contributing_codes = ["first = NULL;", "second = NULL;"]
+- root_cause_code = "last = NULL;"
+→ Au moment de l'insertion : first et second sont déjà NULL
+→ Donc resolution_code = "free(last);" (le seul encore valide)
+
+INTERDIT :
+- Utiliser une variable déjà NULL dans contributing_codes
+- Inventer un nom de variable générique
+- Choisir un "pointeur original" arbitrairement
 
 ====================================================
 SECTION 4 – RÈGLES DE GÉNÉRATION DU CODE DE RÉSOLUTION
@@ -350,7 +402,7 @@ Quand plusieurs pointeurs partagent la même mémoire allouée :
         le free() doit être placé AVANT LA PREMIÈRE modification.
     
     Exemple : 
-    owner = malloc(64);
+    owner = malloc(42);
     alias = owner;
     
     free(owner);      // ← ICI, avant toute modification
@@ -368,6 +420,8 @@ Si pointeur_X est modifié ligne N, alors free(pointeur_X) doit être AVANT lign
 
 - resolution_principe : UNE seule solution précise, pas plusieurs. Doit indiquer clairement où l'insérer ("avant X", "dans la fonction Y").
 - resolution_code : code C correspondant EXACTEMENT à resolution_principe.
+    ⚠️ Vérifie que les variables utilisées dans resolution_code sont ACCESSIBLES au moment de l'insertion.
+    Ne propose JAMAIS free() avec une variable déjà invalidée (NULL, hors scope, écrasée).
 - Les deux doivent être cohérents.
 
 PRÉCISION DU PLACEMENT :
@@ -388,8 +442,19 @@ IMPORTANT FORMATAGE :
 - Le numéro de ligne va dans le champ "line", pas dans "code"
 
 IMPORTANT pour resolution_principe :
-- [code_ligne_reference] = la ligne EXISTANTE du code source (celle avant laquelle insérer)
-- PAS le code de la solution (qui est dans resolution_code)
+
+Pour Type 1 et Type 2 :
+- [root_cause_code] = texte EXACT de cause_reelle.root_cause_code
+- [action_invalidante] = ce que fait cette ligne
+- Format : "Dans [fonction] insérer le code ci-dessous avant [root_cause_code] qui [action_invalidante]"
+
+Pour Type 3 avec pointeurs multiples :
+- Référence la ligne qui modifie [owner] (le propriétaire identifié)
+- Format : "Dans [fonction] insérer le code ci-dessous avant la ligne '[owner] = NULL;' (première modification du propriétaire)"
+- NE PAS référencer root_cause_code
+
+⚠️ resolution_code doit utiliser uniquement des variables ACCESSIBLES au moment de l'insertion
+   (pas de variables déjà NULL, écrasées, ou hors scope)
 
 Réponds STRICTEMENT avec ce JSON :
 
@@ -399,6 +464,7 @@ Réponds STRICTEMENT avec ce JSON :
   "cause_reelle": {{
     "file": "nom_fichier.c",
     "function": "nom_fonction",
+    "owner": "nom_proprietaire  (Type 3 uniquement, vide sinon)",
     "root_cause_code": "ligne exacte copiée du code (sans numéro)",
     "root_cause_comment": "pourquoi cette ligne est la root cause",
     "contributing_codes": [
@@ -408,7 +474,7 @@ Réponds STRICTEMENT avec ce JSON :
     "context_before_code": "ligne juste avant root_cause (sans numéro, ou vide)",
     "context_after_code": "ligne juste après root_cause (sans numéro)"
   }},
-  "resolution_principe": "Dans [nom_fonction] insérer le code ci-dessous avant la ligne [code_ligne_reference] qui [action_invalidante]",
+  "resolution_principe": "Voir format selon type de leak (Section 6)",
   "resolution_code": "Code C exact",
   "explications": "Apport pédagogique (1-2 phrases)"
 }}

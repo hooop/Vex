@@ -4,9 +4,15 @@
 build:
 	docker build --platform linux/amd64 -t vex .
 
-# Compile leaky.c puis lance VEX
+# # Compile leaky.c puis lance VEX
+# run:
+# 	docker run --platform linux/amd64 -it --rm -v $(PWD):/app vex /bin/bash -c "gcc -g -o leaky leaky.c && ./vex.py ./leaky"
+
 run:
-	docker run --platform linux/amd64 -it --rm -v $(PWD):/app vex /bin/bash -c "gcc -g -o leaky leaky.c && ./vex.py ./leaky"
+	docker run --platform linux/amd64 -it --rm \
+		-v $(PWD):/app \
+		-w /app/test_mistral \
+		vex /bin/bash -c "make re && ../vex.py ./leaky"
 
 # Rebuild complet (clean + build)
 rebuild: clean build

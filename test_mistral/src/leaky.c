@@ -29,6 +29,7 @@ void leak_type2_pointer_lost() {
     char *ptr = malloc(50);
     strcpy(ptr, "First allocation");
 /*     printf("coucou"); */
+    free(ptr);
     ptr = malloc(100);
     strcpy(ptr, "Second allocation - first is lost!");
     free(ptr);
@@ -54,7 +55,7 @@ void leak_type3_all_pointers_lost() {
     char *ptr3 = ptr1;
     
     strcpy(ptr1, "Shared memory");
-
+free(ptr1);
     ptr1 = NULL;
     ptr2 = NULL;
     ptr3 = NULL;
@@ -80,6 +81,7 @@ void leak_type3_broken_linked_list() {
     
     Node *third = head->next->next;
 
+    
     head->next = NULL;
     
     free(head->data);
