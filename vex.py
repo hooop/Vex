@@ -16,6 +16,7 @@ from valgrind_parser import parse_valgrind_report
 from code_extractor import extract_call_stack
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
 from display import display_analysis
+from welcome import clear_screen, display_logo, start_spinner, stop_spinner, display_summary, display_menu
 
 
 def print_error(message: str) -> None:
@@ -64,51 +65,70 @@ def main() -> int:
         return 0
 
     try:
-        # Étape 1: Exécution de Valgrind
-        print(f"🔍 Analyse de {executable} avec Valgrind...")
-        full_command = executable
+        # Affichage du logo et démarrage
+        clear_screen()
+        display_logo()
 
+        # Étape 1: Exécution de Valgrind avec spinner
+        full_command = executable
         if program_args:
             full_command += " " + " ".join(program_args)
 
+        t = start_spinner("Lancement de Valgrind")
         valgrind_output = run_valgrind(full_command)
+        stop_spinner(t, "Lancement de Valgrind")
 
-        # Étape 2: Parsing du rapport
-        print("📝 Parsing du rapport Valgrind...")
+        # Étape 2: Parsing du rapport avec spinner
+        t = start_spinner("Parsing du rapport")
         parsed_data = parse_valgrind_report(valgrind_output)
+        stop_spinner(t, "Parsing du rapport")
 
-        # Le parser retourne un dict avec 'has_leaks', 'summary', et 'leaks'
+        # Vérification : y a-t-il des leaks ?
         if not parsed_data.get('has_leaks', False):
             print("\n✅ Aucune erreur mémoire détectée ! Votre code est clean.\n")
             return 0
 
-        # Extraire la liste des leaks
         parsed_errors = parsed_data.get('leaks', [])
-
         if not parsed_errors:
             print("\n✅ Aucune erreur mémoire détectée ! Votre code est clean.\n")
             return 0
 
-        print(f"⚠️  {len(parsed_errors)} erreur(s) détectée(s)\n")
+        # Affichage du résumé
+        display_summary(parsed_data)
 
-        # Étape 3: Extraction du code pour chaque erreur
-        print("🔎 Extraction du contexte du code...")
+        # Menu : commencer ou quitter
+        choice = display_menu()
+        
+        if choice == "quit":
+            print("\n👋 Au revoir !\n")
+            return 0
 
+        # L'utilisateur a choisi de commencer
+        clear_screen()
+
+        # Étape 3: Extraction du code avec spinner
+        t = start_spinner("Extraction du code source")
         for error in parsed_errors:
             if 'backtrace' in error and error['backtrace']:
                 error['extracted_code'] = extract_call_stack(error['backtrace'])
             else:
                 error['extracted_code'] = []
+        stop_spinner(t, "Extraction du code source")
 
         # Étape 4: Analyse avec Mistral AI
-        print("🤖 Analyse avec Mistral AI...\n")
-        print("="*60)
-
+        t = start_spinner("Interrogation de Mistral AI")
+        # Note : on garde le spinner jusqu'à la première analyse
+        # puis on l'arrête avant d'afficher
+        
         for i, error in enumerate(parsed_errors, 1):
             try:
                 # Analyse de l'erreur
                 analysis = analyze_with_mistral(error)
-
+                
+                # Arrêter le spinner avant le premier affichage
+                if i == 1:
+                    stop_spinner(t, "Interrogation de Mistral AI")
+                    
                 # Affichage
                 display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
 
@@ -118,6 +138,8 @@ def main() -> int:
                     print("\n" + "="*60 + "\n")
 
             except MistralAPIError as e:
+                if i == 1:
+                    stop_spinner(t, "Interrogation de Mistral AI")
                 print_error(f"Erreur lors de l'analyse de l'erreur #{i}: {e}")
                 continue
 
@@ -144,7 +166,7 @@ def main() -> int:
     except Exception as e:
         print_error(f"Erreur inattendue: {e}")
         import traceback
-        traceback.print_exc()  # Pour voir l'erreur complète pendant le debug
+        traceback.print_exc()
         return 1
 
 

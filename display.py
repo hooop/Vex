@@ -19,6 +19,7 @@ def _build_header(error_number, total_errors):
     DARK_GREEN = "\033[38;5;49m"
     RESET = "\033[0m"
     
+    print()
     # Construction du texte central
     text = f"‣ Leak {error_number} / {total_errors} | Valgrind Error eXplorer"
     
