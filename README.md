@@ -8,9 +8,7 @@
 
 # VEX - Valgrind Error eXplorer
 
-<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700">
-
-## Pourquoi Vex ?
+## Vex ?
 
 Etudiant à 42 j'ai passé des heures à déchiffrer les rapports Valgrind en arrivant à ce constat : pourquoi perdre du temps à comprendre les traces cryptiques quand une IA pourrait expliquer le problème en langage clair ?
 VEX analyse vos memory leaks et vous dit exactement :
@@ -19,7 +17,7 @@ VEX analyse vos memory leaks et vous dit exactement :
 - Pourquoi cette ligne crée un leak
 - Comment le corriger concrètement
 
-<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700">
+<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700">
     
 ## Fonctionnalités
 
@@ -29,6 +27,8 @@ VEX analyse vos memory leaks et vous dit exactement :
 - Workflow interactif : Analyse un leak à la fois pour corriger progressivement
 - Catégorisation intelligente : Identifie 3 types de leaks (mémoire jamais free, pointeur perdu, mémoire inaccessible)
 - Focus "definitely lost" : Se concentre sur les fuites mémoire critiques (v1.0)
+
+<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700">
 
 ## À qui s'adresse VEX ?
 
