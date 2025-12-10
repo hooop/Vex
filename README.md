@@ -10,7 +10,9 @@
 
 ## Vex ?
 
-Etudiant à 42 j'ai passé des heures à déchiffrer les rapports Valgrind en arrivant à ce constat : pourquoi perdre du temps à comprendre les traces cryptiques quand une IA pourrait expliquer le problème en langage clair ?
+Etudiant à 42 j'ai passé des heures à déchiffrer les rapports Valgrind en arrivant à ce constat :
+
+- pourquoi perdre du temps à comprendre les traces cryptiques quand une IA pourrait expliquer le problème en langage clair ?
 
 **Vex** analyse vos memory leaks et vous dit exactement :
 
