@@ -8,7 +8,7 @@
 
 # Vex - Valgrind Error eXplorer
 
-<small>Dec 2025 - To Do : Améliorer ergonomie relance valgrind après correciton leak.</small>
+<sub>Dec 2025 - To Do : Améliorer ergonomie relance valgrind après correciton leak.</sub>
 
 ## Vex ?
 
