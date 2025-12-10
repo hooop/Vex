@@ -10,7 +10,8 @@
 
 <sub>
 TO DO : <br>
-Dec 25 : Améliorer ergonomie relance valgrind après correciton leak.<br>          
+Dec 25 : Améliorer ergonomie relance valgrind après correciton leak.<br>
+         Améliorer ergonomie lancement : vex ./mon_prog
 </sub>
 
 ## Vex ?
