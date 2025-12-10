@@ -8,6 +8,8 @@
 
 # Vex - Valgrind Error eXplorer
 
+<small>Dec 2025 - To Do : Améliorer ergonomie relance valgrind après correciton leak.</small>
+
 ## Vex ?
 
 Etudiant à 42 j'ai passé des heures à déchiffrer les rapports Valgrind en arrivant à ce constat :
