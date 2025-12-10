@@ -1,9 +1,10 @@
+<pre>
           ████
 ██  ██  ██      ██  ██
 ██  ██  ████      ██
   ██    ██      ██  ██
           ████
-
+</pre>
 
 # VEX - Valgrind Error eXplorer
 
