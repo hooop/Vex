@@ -245,6 +245,12 @@ SECTION 3 – RÈGLES D'ANALYSE STRICTES
         5. Type 1 : TOUJOURS vide []
         6. Type 3 avec pointeurs multiples : inclure TOUTES les assignations à NULL
            SAUF la dernière (qui est la root_cause)
+        7. Commentaire : QUASI TOUJOURS VIDE
+           → 99% du temps : laisser ""
+           → Commentaire UNIQUEMENT pour un concept C complexe/subtil (pas évident pour un débutant)
+           → JAMAIS de reformulation du code
+           → Exemples acceptables : "crée un cycle", "perd le pointeur original", "casse la chaîne"
+           → Exemples INTERDITS : "allocation", "crée un noeud", "assigne NULL"
         
         EXEMPLE CORRECT (Type 2) :
         Si le code est :
@@ -466,10 +472,10 @@ Réponds STRICTEMENT avec ce JSON :
     "function": "nom_fonction",
     "owner": "nom_proprietaire  (Type 3 uniquement, vide sinon)",
     "root_cause_code": "ligne exacte copiée du code (sans numéro)",
-    "root_cause_comment": "pourquoi cette ligne est la root cause",
+    "root_cause_comment": "pourquoi cette ligne déclenche la fuite (max 8 mots)",
     "contributing_codes": [
-        {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}},
-        {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}}
+    {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "vide \"\" (sauf concept C subtil)"}},
+    {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "vide \"\" (sauf concept C subtil)"}}
     ],
     "context_before_code": "ligne juste avant root_cause (sans numéro, ou vide)",
     "context_after_code": "ligne juste après root_cause (sans numéro)"

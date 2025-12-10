@@ -81,7 +81,16 @@ void leak_type3_broken_linked_list() {
     
     Node *third = head->next->next;
 
-    
+
+    Node *temp = head->next;
+while (temp) {
+    Node *next = temp->next;
+    free(temp->data);
+    free(temp);
+    temp = next;
+}
+
+
     head->next = NULL;
     
     free(head->data);
