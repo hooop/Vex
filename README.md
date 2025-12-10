@@ -11,7 +11,8 @@
 ## Vex ?
 
 Etudiant à 42 j'ai passé des heures à déchiffrer les rapports Valgrind en arrivant à ce constat : pourquoi perdre du temps à comprendre les traces cryptiques quand une IA pourrait expliquer le problème en langage clair ?
-VEX analyse vos memory leaks et vous dit exactement :
+
+**Vex** analyse vos memory leaks et vous dit exactement :
 
 - Quelle ligne de code pose problème
 - Pourquoi cette ligne crée un leak
