@@ -6,7 +6,7 @@
           ████
 </pre>
 
-# VEX - Valgrind Error eXplorer
+# Vex - Valgrind Error eXplorer
 
 ## Vex ?
 
@@ -28,7 +28,7 @@ VEX analyse vos memory leaks et vous dit exactement :
 - Catégorisation intelligente : Identifie 3 types de leaks (mémoire jamais free, pointeur perdu, mémoire inaccessible)
 - Focus "definitely lost" : Se concentre sur les fuites mémoire critiques (v1.0)
 
-<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700">
+<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
 
 ## À qui s'adresse VEX ?
 
