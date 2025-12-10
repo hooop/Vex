@@ -42,4 +42,4 @@ Chaque analyse explique :
 
 <img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
 
-C'est un outil d'apprentissage qui aide les développeurs à maîtriser la gestion mémoire en C.
+**Vex** est un outil d'apprentissage qui aide les développeurs à maîtriser la gestion mémoire en C.
