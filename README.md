@@ -7,12 +7,8 @@
 </pre>
 
 # VEX - Valgrind Error eXplorer
-<table border = "0">
-  <tr>
-    <td><img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700"></td>
-    <td><img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700"></td>
-  </tr>
-</table>
+
+<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700">
 
 ## Pourquoi Vex ?
 
@@ -23,6 +19,8 @@ VEX analyse vos memory leaks et vous dit exactement :
 - Pourquoi cette ligne crée un leak
 - Comment le corriger concrètement
 
+<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700">
+    
 ## Fonctionnalités
 
 - Analyse automatique : Lance Valgrind, parse le rapport, extrait le contexte du code
