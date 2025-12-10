@@ -7,9 +7,10 @@
 </pre>
 
 # VEX - Valgrind Error eXplorer
-
+<div style="display: flex; gap: 20px;">
 <img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="600">
 <img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="600">
+</div>
 
 ## Pourquoi Vex ?
 
