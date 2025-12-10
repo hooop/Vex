@@ -7,10 +7,10 @@
 </pre>
 
 # VEX - Valgrind Error eXplorer
-<table>
+<table border = "0">
   <tr>
-    <td><img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="600"></td>
-    <td><img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="600"></td>
+    <td><img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700"></td>
+    <td><img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="700"></td>
   </tr>
 </table>
 
