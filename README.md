@@ -8,7 +8,7 @@
 
 # VEX - Valgrind Error eXplorer
 
-![Aperçu Vex](accueil_vex.png)
+<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="500">
 
 ## Pourquoi Vex ?
 
