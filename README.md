@@ -8,7 +8,8 @@
 
 # VEX - Valgrind Error eXplorer
 
-<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="500">
+<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="600">
+<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="600">
 
 ## Pourquoi Vex ?
 
