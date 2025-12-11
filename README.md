@@ -37,7 +37,7 @@ Pourquoi perdre du temps à comprendre les traces cryptiques quand une IA pourra
 
 <img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700">
 
-## À qui s'adresse VEX ?
+## À qui s'adresse Vex ?
 
 **Vex** est conçu pour tous ceux qui apprennent ou utilisent le C. L'objectif n'est pas de masquer les erreurs mais d'apprendre en comprenant.
 Chaque analyse explique :
