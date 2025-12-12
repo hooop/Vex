@@ -16,9 +16,9 @@ Dec 25 : Améliorer ergonomie relance valgrind après correciton leak.<br>
 
 ## Vex ?
 
-Durant mes études à l’école 42, déchiffrer les rapports Valgrind et résoudre les fuites mémoire fut une tâche ardue.
+Durant mes études à l’école 42, résoudre les memory leaks fut une tâche ardue.
 
-Valgrind détecte les fuites et indique où la mémoire a été allouée, mais il ne dit pas pourquoi elle n’a pas été libérée. Il faut remonter le code, comprendre le contexte, identifier la vraie cause.
+Valgrind détecte les fuites et indique où la mémoire a été allouée, mais il n'explique pas comment les corriger. Il faut remonter la pile d'appel, comprendre le contexte, identifier la vraie cause.
 
 J’ai créé **Vex** pour faire ce travail d’analyse automatiquement :
 
