@@ -16,6 +16,8 @@ Dec 25 : Améliorer ergonomie relance valgrind après correciton leak.<br>
 
 ## Vex ?
 
+**Vex** est un outil d'apprentissage qui aide les développeurs à maîtriser la gestion mémoire en C.
+
 Durant mes études à l’école 42, résoudre les memory leaks fut une tâche ardue.
 
 Valgrind détecte les fuites et indique où la mémoire a été allouée, mais il n'explique pas comment les corriger. Il faut remonter la pile d'appel, comprendre le contexte, identifier la vraie cause.
@@ -47,5 +49,3 @@ Chaque analyse explique :
 - La solution recommandée
 
 <img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
-
-**Vex** est un outil d'apprentissage qui aide les développeurs à maîtriser la gestion mémoire en C.
