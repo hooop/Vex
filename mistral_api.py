@@ -93,11 +93,11 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
         return analysis
           
     except json.JSONDecodeError as e:
-        print(f"DEBUG: JSONDecodeError - {e}")
-        print(f"DEBUG: response existe? {response if 'response' in locals() else 'NON'}")
+        # print(f"DEBUG: JSONDecodeError - {e}")
+        # print(f"DEBUG: response existe? {response if 'response' in locals() else 'NON'}")
         return {"error": f"JSON invalide : {str(e)}", "raw": response if 'response' in locals() else 'N/A'}
     except Exception as e:
-        print(f"DEBUG: Exception - {e}")
+        # print(f"DEBUG: Exception - {e}")
         return {"error": str(e)}
 
 
@@ -109,391 +109,127 @@ def _build_prompt(error_data, code_context):
     # print(code_context)
     # print("="*60)
     
-    prompt = f"""Tu es un expert en C et en gestion mémoire. Analyse le LEAK EXACT fourni.
+    prompt = f"""Tu es un expert en C et en gestion mémoire. Tu analyses un memory leak détecté par Valgrind.
 
 ====================================================
-SECTION 1 – INPUT
+DONNÉES VALGRIND
 ====================================================
 
-RAPPORT VALGRIND :
-- Type (selon Valgrind) : {error_data.get('type', 'unknown')}
-- Taille : {error_data.get('size', 'unknown')}
-- Allocation : {error_data.get('function', 'unknown')}() [{error_data.get('file', 'unknown')}:{error_data.get('line', '?')}]
+RAPPORT :
+- Taille : {error_data.get('bytes', error_data.get('size', 'unknown'))} bytes
+- Fonction d'allocation : {error_data.get('function', 'unknown')}()
+- Fichier : {error_data.get('file', 'unknown')}
+- Ligne : {error_data.get('line', '?')}
 
-CODE SOURCE :
+CALL STACK :
 {code_context}
 
 ====================================================
-SECTION 2 – ORDRE CHRONOLOGIQUE STRICT
+SYSTÈME D'ANALYSE PAR LABELS
 ====================================================
 
-RÈGLE ABSOLUE : Tout code extrait doit respecter l'ordre du fichier source.
+Tu traces la RESPONSABILITÉ de libération, pas juste les variables.
 
-Tu dois COPIER les lignes EXACTEMENT comme elles apparaissent,
-dans l'ordre CROISSANT de leurs numéros de ligne.
+LABELS :
+- OWNER : variable simple qui reçoit malloc, responsable de free
+- EMBEDDED : mémoire stockée dans un conteneur (via -> ou [])
+- TRANSFERRED : responsabilité transférée via return
+- FREED : mémoire libérée
+- LEAK : état final non libéré
 
-====================================================
-SECTION 3 – RÈGLES D'ANALYSE STRICTES
-====================================================
-
-1. INTERDIT D'INVENTER
-   - Aucune fonction, aucune variable, aucune structure inventée.
-   - Si tu ne vois pas free() → la mémoire n'est PAS libérée.
-   - Ne déduis JAMAIS une libération implicite ou supposée ailleurs.
-   - N'interprète jamais.
-
-2. ANALYSE FACTUELLE UNIQUEMENT
-   - Identifier l'allocation.
-   - Identifier où elle devrait être libérée.
-   - Identifier pourquoi elle ne l'est pas.
-
-3. CLASSIFICATION DES TYPES DE LEAK (choisir uniquement 1, 2 ou 3) :
-    - Type 1 : malloc() visible, aucun free() correspondant.
-      
-      → Si malloc() est dans une fonction qui RETOURNE le pointeur,
-         la root_cause est dans la fonction APPELANTE qui perd ce pointeur.
-      → Sinon, root_cause = ligne du malloc() lui-même.
-    
-    - Type 2 : pointeur écrasé/réassigné avant free.
-
-        ⚠️ ATTENTION VALGRIND vs ROOT CAUSE :
-        Valgrind indique toujours la ligne du malloc() qui leak.
-        Mais pour Type 2, la root_cause est la ligne OÙ LE POINTEUR EST ÉCRASÉ.
-        
-        Dans le code fourni :
-        - Valgrind pointe sur l'allocation initiale
-        - Root cause : cherche APRÈS cette ligne où le pointeur est réassigné/écrasé
-  
-        → Tu dois TROUVER dans le code la ligne de réassignation, pas répéter ce que dit Valgrind.
-    
-    - Type 3 : pointeur devient inaccessible (ex: lien coupé, variable hors scope).
-      
-        ⚠️ POUR LE TYPE 3 AVEC POINTEURS MULTIPLES :
-            Si plusieurs variables pointent vers la même mémoire allouée,
-            le leak devient effectif quand le DERNIER pointeur valide est perdu/écrasé.
-            → Identifie la ligne où PLUS AUCUN pointeur ne permet d'accéder à la mémoire.
-            → Pas la première assignation à NULL, mais la DERNIÈRE.
-            
-            RÈGLE ABSOLUE pour la solution :
-                → Identifie le PROPRIÉTAIRE (la variable qui a directement reçu le malloc)
-                → La solution doit TOUJOURS libérer via le propriétaire
-                → Même si root_cause invalide un alias, la solution utilise le propriétaire
-                → Timing : free(propriétaire) doit être AVANT la PREMIÈRE modification de ce propriétaire
-                
-                Exemple générique : 
-                owner = malloc(X);     ← propriétaire
-                alias_a = owner;
-                alias_b = owner;
-                owner = NULL;          ← PREMIÈRE modification du propriétaire
-                alias_a = NULL;
-                alias_b = NULL;        ← root_cause
-                
-                Solution : free(owner); AVANT "owner = NULL;"
-
-            → PUIS trace TOUS les blocs mémoire perdus à partir de ce point.
-            → La resolution_code doit libérer TOUS ces blocs, pas seulement le premier.
-            → Exemple : si ptr->a->b->c existe, libère les 3 structures chaînées.
-
-        ⚠️ CAS SPÉCIAL - CHAÎNE CASSÉE (ptr->next = NULL ou ptr->next = autre) :
-            Si la root_cause coupe un lien dans une liste chaînée :
-            
-            ÉTAPE 1 - Identifier ce qui est perdu :
-            → Quand tu fais "element->next = NULL" ou "element->next = autre_chose"
-            → TOUT ce qui était accessible via l'ancien "element->next" devient perdu
-            → Si l'ancienne chaîne était : element -> X -> Y -> Z
-            → Alors X, Y et Z sont perdus
-            
-            ÉTAPE 2 - Solution :
-            → Sauvegarder l'ancien "element->next" dans une variable temporaire AVANT la coupure
-            → Parcourir et libérer TOUS les éléments de cette sous-chaîne avec une boucle
-            → PUIS faire la coupure du lien
-            
-            Structure de code type :
-            Type *temp = element->next;
-            while (temp) {{
-                Type *suivant = temp->next;
-                free(temp->membre_alloue);
-                free(temp);
-                temp = suivant;
-            }}
-            element->next = NULL;
-
-
-    → Tu renvoies SEULEMENT le numéro dans "type_leak".
-    → Je génère moi-même la phrase générique côté application.
-
-4. STRUCTURE cause_reelle
-    
-    cause_reelle :
-        * file : fichier contenant root_cause
-        * function : fonction contenant root_cause
-        * owner : (Type 3 uniquement) nom de la variable propriétaire (celle qui a reçu le malloc)
-        * root_cause_code : ligne EXACTE copiée du code (SANS le numéro de ligne)
-        * root_cause_comment : pourquoi cette ligne déclenche la fuite
-        
-        * contributing_codes : [
-            {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}},
-            {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "explication"}}
-        ]
-        
-        RÈGLES ABSOLUES pour contributing_codes :
-        
-        1. INTERDICTION STRICTE : root_cause_code ne doit JAMAIS apparaître ici
-        2. UNIQUEMENT des lignes qui apparaissent PHYSIQUEMENT AVANT root_cause dans le fichier
-        3. Les lignes doivent être PERTINENTES : allocation initiale, manipulation du pointeur
-        4. JAMAIS de lignes APRÈS root_cause
-        5. Type 1 : TOUJOURS vide []
-        6. Type 3 avec pointeurs multiples : inclure TOUTES les assignations à NULL
-           SAUF la dernière (qui est la root_cause)
-        7. Commentaire : QUASI TOUJOURS VIDE
-           → 99% du temps : laisser ""
-           → Commentaire UNIQUEMENT pour un concept C complexe/subtil (pas évident pour un débutant)
-           → JAMAIS de reformulation du code
-           → Exemples acceptables : "crée un cycle", "perd le pointeur original", "casse la chaîne"
-           → Exemples INTERDITS : "allocation", "crée un noeud", "assigne NULL"
-        
-        EXEMPLE CORRECT (Type 2) :
-        Si le code est :
-        42: node = create_node();
-        43: process_data(node);
-        44: node = create_node();  ← root_cause (réassignation)
-        45: finalize(node);
-        
-        Alors :
-        contributing_codes: [{{"code": "node = create_node();", "comment": "allocation initiale perdue"}}]
-        root_cause_code: "node = create_node();"
-        context_after_code: "finalize(node);"
-        
-        ✗ INTERDIT : mettre "finalize(node);" dans contributing_codes (c'est APRÈS root_cause)
-      
-      * context_before_code : ligne physiquement juste avant root_cause (SANS le numéro de ligne)
-        → La ligne qui précède immédiatement root_cause dans le code source
-        → Ne doit PAS être identique à une ligne déjà dans contributing_codes
-        → COPIER la ligne EXACTEMENT
-        
-      * context_after_code : ligne physiquement juste après root_cause (SANS le numéro de ligne)
-        → La ligne qui suit immédiatement root_cause dans le code source
-        → Ne doit PAS être identique à root_cause ou à contributing_codes
-        → UNE SEULE ligne
-        → COPIER la ligne EXACTEMENT
+DÉTECTION SYNTAXIQUE :
+- ptr = malloc(...) → ptr est OWNER
+- x->field = malloc(...) → mémoire EMBEDDED dans x
+- x[i] = malloc(...) → mémoire EMBEDDED dans x
+- return ptr → ptr devient TRANSFERRED
+- free(ptr) → ptr devient FREED
 
 ====================================================
-SECTION 3.5 — CHOIX DES VARIABLES DANS resolution_code
+PROCÉDURE D'ANALYSE
 ====================================================
 
-RÈGLE CRITIQUE : resolution_code doit utiliser une variable ENCORE VALIDE.
+ÉTAPE 1 — IDENTIFIER L'ALLOCATION (CRITIQUE)
 
-Au moment d'insérer le free() (AVANT root_cause_code) :
-→ Les lignes de contributing_codes sont DÉJÀ exécutées
-→ Donc si contributing_codes contient "variable_x = NULL;" alors variable_x est INUTILISABLE
-→ Utilise la variable de root_cause_code (qui n'est pas encore NULL)
+La call stack Valgrind te donne des numéros de ligne PRÉCIS.
+Pour chaque fonction de la call stack :
+1. Lis le numéro de ligne indiqué
+2. Trouve cette ligne EXACTE dans le code fourni
+3. Lis ce que cette ligne contient
 
-Exemple :
-- contributing_codes = ["first = NULL;", "second = NULL;"]
-- root_cause_code = "last = NULL;"
-→ Au moment de l'insertion : first et second sont déjà NULL
-→ Donc resolution_code = "free(last);" (le seul encore valide)
+Exemple : si Valgrind dit "process_nodes (leaky.c:77)", va à la ligne 77 dans le code et lis-la. Cette ligne te dit QUEL appel précis parmi plusieurs.
 
-INTERDIT :
-- Utiliser une variable déjà NULL dans contributing_codes
-- Inventer un nom de variable générique
-- Choisir un "pointeur original" arbitrairement
+Une fois la ligne trouvée :
+- Quelle variable ou champ reçoit le malloc ?
+- Label initial : OWNER ou EMBEDDED ?
 
-====================================================
-SECTION 4 – RÈGLES DE GÉNÉRATION DU CODE DE RÉSOLUTION
-====================================================
+ÉTAPE 2 — REMONTER LA CALL STACK
 
-RÈGLES DE SÉCURITÉ MÉMOIRE :
+Pour chaque return, suis où le pointeur est stocké dans la fonction appelante.
+Construis le chemin complet jusqu'au propriétaire final.
 
-- JAMAIS accéder à un pointeur après free()
-- JAMAIS déréférencer (ptr->...) un pointeur libéré
-- Si tu proposes de libérer dans un ordre, vérifie que chaque free()
-  n'utilise QUE des pointeurs encore valides
-- Privilégie toujours la solution la plus simple et sûre
+ÉTAPE 3 — CHERCHER LE FREE
 
-RÈGLE DES ALLOCATIONS MULTIPLES :
+Cherche un free() sur le propriétaire final ou un alias équivalent.
+- Trouvé → FREED
+- Absent → continue à l'étape 4
 
-Si une structure contient des membres alloués dynamiquement,
-tu DOIS libérer dans cet ordre :
-1. D'abord les membres alloués (ex: free(obj->buffer))
-2. Puis la structure elle-même (ex: free(obj))
+ÉTAPE 4 — VÉRIFIER LES CONTENEURS
 
-Vérifie dans le code fourni les allocations imbriquées.
-Chaque malloc/strdup/calloc doit avoir son free correspondant.
+Si la mémoire est EMBEDDED : son conteneur est-il FREED avant elle ?
+- Oui → la mémoire devient LEAK (Type 3)
+- Non → la mémoire est LEAK (Type 1)
 
-ORDRE DE LIBÉRATION CRITIQUE :
+ÉTAPE 5 — CONCLURE
 
-Quand tu libères une chaîne de structures liées (A->B->C->D) :
-
-1. PRIVILÉGIE une boucle while si possible (plus robuste et maintenable)
-2. SINON libère du DERNIER au PREMIER (D, puis C, puis B, puis A)
-3. SINON sauvegarde chaque pointeur dans une variable temporaire AVANT tout free()
-
-✓ MEILLEUR (boucle) :
-while (liste != NULL) {{
-    Type *tmp = liste->next;
-    free(liste->data);
-    free(liste);
-    liste = tmp;
-}}
-
-✓ CORRECT (ordre inverse) :
-free(dernier->data);
-free(dernier);
-free(avant_dernier->data);
-free(avant_dernier);
-
-✗ INVALIDE :
-free(premier);
-free(premier->suivant);  // premier est déjà libéré !
-
-TIMING DE LA SOLUTION (Type 2 et Type 3) :
-
-Si la root_cause DÉTRUIT un accès (assignation NULL, réassignation, fin de scope),
-ta solution doit s'exécuter AVANT cette destruction.
-
-Dans resolution_principe, tu DOIS préciser explicitement :
-- "Insérer ce code AVANT la ligne qui détruit l'accès"
-- OU "Remplacer la ligne problématique par ce code"
-- OU "Supprimer la ligne problématique et ajouter ce code à la place"
-
-Ne propose JAMAIS de code qui suppose que des pointeurs détruits existent encore.
-
-PRINCIPE DE SOLUTION NATURELLE (Type 2 uniquement) :
-
-Quand un pointeur est réassigné avant free (Type 2), privilégie TOUJOURS :
-→ free(ptr) AVANT la réassignation
-→ Puis faire le nouveau malloc
-
-Évite les variables temporaires sauf si le code montre explicitement 
-qu'on a BESOIN de conserver les deux allocations simultanément.
-
-✓ CORRECT :
-free(ptr);
-ptr = malloc(...);
-
-✗ À ÉVITER :
-char *temp = ptr;
-ptr = malloc(...);
-free(temp);
+Type 1 : Aucun free() pour cette allocation → root cause = où insérer le free
+Type 2 : Pointeur réassigné avant free → root cause = ligne de réassignation
+Type 3 : Conteneur FREED avant contenu → root cause = ligne du free du conteneur
 
 ====================================================
-SECTION 5 – DIAGNOSTIC
+FORMAT JSON (UNIQUEMENT, AUCUN TEXTE AVANT/APRÈS)
 ====================================================
-
-- diagnostic : 2 phrases max, factuelles et pédagogique, commençant TOUJOURS par :
-   "Dans {{nom_fonction}}() ..."
-- INTERDICTION : Les 2 phrases ne doivent PAS dire la même chose reformulée
-- Première phrase : QUOI (le problème factuel)
-- Deuxième phrase : POURQUOI/CONSÉQUENCE (l'impact pédagogique)
-
-====================================================
-SECTION 6 — RÉSOLUTION
-====================================================
-
-RÈGLE FONDAMENTALE DE PROPRIÉTÉ MÉMOIRE :
-
-En C professionnel, le pointeur qui ALLOUE est celui qui doit LIBÉRER.
-- Si pointeur_A reçoit le malloc(), alors c'est pointeur_A qui fait le free()
-- Les autres pointeurs vers cette mémoire sont des alias/observateurs
-- On libère via le propriétaire original AVANT toute manipulation
-
-SOLUTION TYPE 3 AVEC POINTEURS MULTIPLES :
-
-Quand plusieurs pointeurs partagent la même mémoire allouée :
-1. Identifie le propriétaire (celui qui a directement reçu le retour de malloc)
-2. Libère via ce propriétaire AVANT qu'il ne soit modifié/invalidé
-3. TIMING CRITIQUE : free() doit s'exécuter AVANT que le propriétaire change
-    → Si le propriétaire est modifié/invalidé à plusieurs endroits, 
-        le free() doit être placé AVANT LA PREMIÈRE modification.
-    
-    Exemple : 
-    owner = malloc(42);
-    alias = owner;
-    
-    free(owner);      // ← ICI, avant toute modification
-    owner = NULL;     // première modification
-    alias = NULL;     // deuxième modification
-
-Exemple de formulation attendue :
-- "Libérer via [propriétaire] AVANT sa modification"
-- "Insérer free([propriétaire]) avant la ligne qui invalide ce pointeur"
-
-⚠️ COHÉRENCE OBLIGATOIRE :
-Si tu proposes free(pointeur_X), vérifie que pointeur_X est encore VALIDE
-au moment où tu proposes de l'utiliser.
-Si pointeur_X est modifié ligne N, alors free(pointeur_X) doit être AVANT ligne N.
-
-- resolution_principe : UNE seule solution précise, pas plusieurs. Doit indiquer clairement où l'insérer ("avant X", "dans la fonction Y").
-- resolution_code : code C correspondant EXACTEMENT à resolution_principe.
-    ⚠️ Vérifie que les variables utilisées dans resolution_code sont ACCESSIBLES au moment de l'insertion.
-    Ne propose JAMAIS free() avec une variable déjà invalidée (NULL, hors scope, écrasée).
-- Les deux doivent être cohérents.
-
-PRÉCISION DU PLACEMENT :
-
-Ton resolution_principe DOIT être explicite sur l'emplacement :
-❌ VAGUE : "Libérer via ptr1 AVANT sa modification"
-✅ PRÉCIS : "Insérer free(ptr1); AVANT la ligne 58 (avant ptr1 = NULL;)"
-
-Format attendu : "Insérer [code] AVANT la ligne qui [action]"
-
-====================================================
-SECTION 7 – FORMAT SORTIE : JSON EXCLUSIF
-====================================================
-
-IMPORTANT FORMATAGE :
-- Dans tous les champs "code" du JSON, tu dois copier UNIQUEMENT le code source
-- SANS le numéro de ligne devant (ex: "tmp = ft_strdup(str);" et PAS "42: tmp = ft_strdup(str);")
-- Le numéro de ligne va dans le champ "line", pas dans "code"
-
-IMPORTANT pour resolution_principe :
-
-Pour Type 1 et Type 2 :
-- [root_cause_code] = texte EXACT de cause_reelle.root_cause_code
-- [action_invalidante] = ce que fait cette ligne
-- Format : "Dans [fonction] insérer le code ci-dessous avant [root_cause_code] qui [action_invalidante]"
-
-Pour Type 3 avec pointeurs multiples :
-- Référence la ligne qui modifie [owner] (le propriétaire identifié)
-- Format : "Dans [fonction] insérer le code ci-dessous avant la ligne '[owner] = NULL;' (première modification du propriétaire)"
-- NE PAS référencer root_cause_code
-
-⚠️ resolution_code doit utiliser uniquement des variables ACCESSIBLES au moment de l'insertion
-   (pas de variables déjà NULL, écrasées, ou hors scope)
-
-Réponds STRICTEMENT avec ce JSON :
 
 {{
-  "type_leak": 1,
-  "diagnostic": "Dans nom_fonction(), explication factuelle et pédagogique (2 phrases max)",
+  "raisonnement": [
+    "<Décris chaque étape de ton analyse, une entrée par action>",
+    "<Continue jusqu'à la conclusion, sans limite de nombre>"
+  ],
+  "type_leak": <1, 2 ou 3>,
+  "diagnostic": "Dans <fonction>(), <explication factuelle en 2 phrases max>",
   "cause_reelle": {{
-    "file": "nom_fichier.c",
-    "function": "nom_fonction",
-    "owner": "nom_proprietaire  (Type 3 uniquement, vide sinon)",
-    "root_cause_code": "ligne exacte copiée du code (sans numéro)",
-    "root_cause_comment": "pourquoi cette ligne déclenche la fuite (max 8 mots)",
+    "file": "<fichier.c>",
+    "function": "<fonction où se trouve la root cause>",
+    "owner": "<propriétaire final de la mémoire - OBLIGATOIRE si type 3>",
+    "root_cause_code": "<copie EXACTE de la ligne, SANS numéro>",
+    "root_cause_comment": "<pourquoi cette ligne cause le leak>",
     "contributing_codes": [
-    {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "vide \"\" (sauf concept C subtil)"}},
-    {{"code": "ligne exacte AVANT root_cause (sans numéro)", "comment": "vide \"\" (sauf concept C subtil)"}}
+      {{"code": "<ligne AVANT root_cause, SANS numéro>", "comment": "<son rôle>"}}
     ],
-    "context_before_code": "ligne juste avant root_cause (sans numéro, ou vide)",
-    "context_after_code": "ligne juste après root_cause (sans numéro)"
+    "context_before_code": "<ligne juste avant ou vide>",
+    "context_after_code": "<ligne juste après ou vide>"
   }},
-  "resolution_principe": "Voir format selon type de leak (Section 6)",
-  "resolution_code": "Code C exact",
-  "explications": "Apport pédagogique (1-2 phrases)"
+  "resolution_principe": "Dans <fonction>(), <action à faire> avant/après <repère dans le code>",
+  "resolution_code": "<code C exact à insérer>",
+  "explications": "<pourquoi cette solution corrige le leak>"
 }}
 
 ====================================================
-SECTION 8 – RÈGLES FINALES
+RÈGLES
 ====================================================
-- AUCUN texte en dehors du JSON.
-- Pas d'interprétation. Pas de restructuration du code.
-- Ignore tout ce qui n'est pas lié EXACTEMENT à ce leak.
-- RESPECTE L'ORDRE CHRONOLOGIQUE DU FICHIER SOURCE.
-- Pour Type 3 avec pointeurs multiples : root_cause = DERNIÈRE ligne qui perd l'accès.
+
+- Remplis "raisonnement" AVANT de conclure, étape par étape
+- Dans l'étape 1, cite la ligne EXACTE que tu lis dans le code
+- Suis les étapes dans l'ordre
+- Copie les lignes EXACTEMENT, sans numéro de ligne
+- contributing_codes : uniquement des lignes AVANT root_cause_code
+- owner : obligatoire pour Type 3
+- Si free() n'apparaît pas dans le code, la mémoire N'EST PAS libérée
+- Le propriétaire identifié dans "raisonnement" doit correspondre à ce qui est libéré dans "resolution_code"
+- N'invente AUCUNE ligne de code qui n'existe pas
+- JSON uniquement, aucun texte autour
 """
+
+
 
     return prompt
 

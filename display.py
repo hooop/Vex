@@ -113,6 +113,40 @@ def _build_analysis_section(analysis):
     
     return output
 
+
+def _build_raisonnement_section(analysis):
+    """
+    Construit la section Raisonnement.
+    
+    Args:
+        analysis: Dict retourné par Mistral
+    
+    Returns:
+        str: Section formatée avec couleurs ANSI
+    """
+    GREEN = "\033[38;5;158m"
+    LIGHT_YELLOW = "\033[38;5;230m"
+    GRAY = "\033[38;5;245m"
+    RESET = "\033[0m"
+    
+    raisonnement = analysis.get('raisonnement', [])
+    
+    if not raisonnement:
+        return ""
+    
+    # Titre
+    output = f"{GREEN}• Raisonnement{RESET}\n\n"
+    
+    # Chaque étape
+    for i, etape in enumerate(raisonnement, 1):
+        output += f"{GRAY}{i}.{RESET} {LIGHT_YELLOW}{etape}{RESET}\n"
+    
+    output += "\n"
+    
+    return output
+
+
+
 def _find_line_number(filepath, code_to_find):
     """
     Cherche le numéro de ligne d'un code dans un fichier source.
@@ -166,6 +200,10 @@ def _clean_and_sort_code_lines(source_file, cause):
     root_code = cause.get('root_cause_code', '')
     root_line = _find_line_number(source_file, root_code)
     
+    # print(f"DEBUG: source_file={source_file}")
+    # print(f"DEBUG: root_code={repr(root_code)}")
+    # print(f"DEBUG: root_line={root_line}")
+
     if not root_line:
         return None
     
@@ -433,6 +471,8 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
 
     print(_build_analysis_section(analysis))
 
+    print(_build_raisonnement_section(analysis))
+
     print(_build_code_section(error, analysis))
 
     print(_build_solution_section(analysis))
@@ -450,6 +490,7 @@ def display_leak_menu():
     
     MAGENTA = "\033[38;5;219m"
     DARK_GREEN = "\033[38;5;49m"
+    RED = "\033[38;5;174m"
     RESET = "\033[0m"
     
     print()
@@ -471,10 +512,11 @@ def display_leak_menu():
             os.system('clear')
             return "quit"
         else:
-            # Message d'erreur en dessous
-            print("Choix invalide. Tapez v, s ou q.")
+            # Afficher le message d'erreur en dessous
+            print(RED + "Choix invalide. Appuyez sur [v], [s] ou [Q].")
             # Remonter d'une ligne
             sys.stdout.write("\033[F")
-            # Effacer la ligne du prompt
+            sys.stdout.write("\033[F")
+            # Revenir au début de la ligne et effacer
             sys.stdout.write("\r" + " " * 80 + "\r")
             sys.stdout.flush()
