@@ -170,8 +170,14 @@ Construis le chemin complet jusqu'au propriétaire final.
 ÉTAPE 3 — CHERCHER LE FREE
 
 Cherche un free() sur le propriétaire final ou un alias équivalent.
-- Trouvé → FREED
-- Absent → continue à l'étape 4
+
+Si le free passe par une fonction intermédiaire (ex: free_node, destroy, cleanup...) :
+1. Analyse ce que fait cette fonction
+2. Vérifie qu'elle libère AUSSI les champs EMBEDDED
+3. Si elle ne libère que le conteneur, le contenu EMBEDDED devient LEAK
+
+- Free complet trouvé → FREED
+- Free incomplet ou absent → continue à l'étape 4
 
 ÉTAPE 4 — VÉRIFIER LES CONTENEURS
 
