@@ -156,7 +156,7 @@ Pour chaque fonction de la call stack :
 2. Trouve cette ligne EXACTE dans le code fourni
 3. Lis ce que cette ligne contient
 
-Exemple : si Valgrind dit "process_nodes (leaky.c:77)", va à la ligne 77 dans le code et lis-la. Cette ligne te dit QUEL appel précis parmi plusieurs.
+Exemple : si Valgrind dit "ma_fonction (mon_fichier.c:77)", va à la ligne 77 dans le code et lis-la. Cette ligne te dit QUEL appel précis parmi plusieurs.
 
 Une fois la ligne trouvée :
 - Quelle variable ou champ reçoit le malloc ?
