@@ -197,8 +197,11 @@ FORMAT JSON (UNIQUEMENT, AUCUN TEXTE AVANT/APRÈS)
 
 {{
   "raisonnement": [
-    "<Décris chaque étape de ton analyse, une entrée par action>",
-    "<Continue jusqu'à la conclusion, sans limite de nombre>"
+  "<Phrase courte décrivant cette étape d'analyse>",
+  "<Utilise un français simple et concret>",
+  "<Évite les termes techniques OWNER, TRANSFERRED, EMBEDDED, FREED, LEAK>",
+  "<Remplace-les par : 'est responsable de', 'est retourné à', 'caché dans', 'libéré', 'devenu inaccessible'>",
+  "<Continue sans limite de nombre>"
   ],
   "type_leak": <1, 2 ou 3>,
   "diagnostic": "Dans <fonction>(), <explication factuelle en 2 phrases max>",
@@ -232,6 +235,18 @@ RÈGLES
 - Si free() n'apparaît pas dans le code, la mémoire N'EST PAS libérée
 - Le propriétaire identifié dans "raisonnement" doit correspondre à ce qui est libéré dans "resolution_code"
 - N'invente AUCUNE ligne de code qui n'existe pas
+
+TRADUCTION POUR LE RAISONNEMENT :
+- Utilise un français simple et pédagogique dans le champ "raisonnement"
+- Remplace les labels techniques par des phrases concrètes :
+  * OWNER → "est responsable de libérer cette mémoire"
+  * TRANSFERRED → "est retourné à" / "passe à"
+  * EMBEDDED → "caché à l'intérieur de" / "stocké dans la structure"
+  * FREED → "libéré" / "détruit"
+  * LEAK → "devenue inaccessible sans être libérée"
+- Phrases courtes et progressives
+- Raconte l'histoire de la mémoire étape par étape
+
 - JSON uniquement, aucun texte autour
 """
 
