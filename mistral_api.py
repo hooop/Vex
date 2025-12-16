@@ -171,7 +171,7 @@ Construis le chemin complet jusqu'au propriétaire final.
 
 Cherche un free() sur le propriétaire final ou un alias équivalent.
 
-Si le free passe par une fonction intermédiaire (ex: free_node, destroy, cleanup...) :
+Si le free passe par une fonction intermédiaire :
 1. Analyse ce que fait cette fonction
 2. Vérifie qu'elle libère AUSSI les champs EMBEDDED
 3. Si elle ne libère que le conteneur, le contenu EMBEDDED devient LEAK
