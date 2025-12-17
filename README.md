@@ -36,7 +36,7 @@ J’ai créé **Vex** pour faire ce travail d’analyse automatiquement :
 - Catégorisation intelligente : Identifie 3 types de leaks (mémoire jamais free, pointeur perdu, mémoire inaccessible)
 - Focus "definitely lost" : Se concentre sur les fuites mémoire critiques (v1.0)
 
-<img src="output.webp" alt="Aperçu Valgrind Error eXplorer" width="566">
+<img src="accueil_vex.png" alt="Aperçu Valgrind Error eXplorer" width="700">
 
 ## À qui s'adresse Vex ?
 
