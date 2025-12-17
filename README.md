@@ -13,7 +13,6 @@
 <sub>
 TO DO : <br>
 Dec 25 : Gérer les appels aux fonctions de free externe au leak<br>
-         Fusionner les étapes (affichage de debug) et l'analyse
          Améliorer ergonomie lancement : vex ./mon_prog
 </sub>
 
