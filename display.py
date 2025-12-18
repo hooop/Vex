@@ -83,10 +83,10 @@ def _build_analysis_section(analysis):
     Construit la section Analyse Vex avec type de leak et diagnostic.
     
     Args:
-        analysis: Dict retourné par Mistral
+        analysis : Dict retourné par Mistral
     
     Returns:
-        str: Section formatée avec couleurs ANSI
+        str : Section formatée avec couleurs ANSI
     """
     GREEN = "\033[38;5;158m"
     DARK_YELLOW = "\033[38;5;228m"
@@ -125,8 +125,8 @@ def _build_raisonnement_section(analysis):
         str: Section formatée avec couleurs ANSI
     """
     GREEN = "\033[38;5;158m"
+    DARK_YELLOW = "\033[38;5;228m"
     LIGHT_YELLOW = "\033[38;5;230m"
-    GRAY = "\033[38;5;245m"
     RESET = "\033[0m"
     
     raisonnement = analysis.get('raisonnement', [])
@@ -139,7 +139,7 @@ def _build_raisonnement_section(analysis):
     
     # Chaque étape
     for i, etape in enumerate(raisonnement, 1):
-        output += f"{GRAY}{i}.{RESET} {LIGHT_YELLOW}{etape}{RESET}\n"
+        output += f"{DARK_YELLOW}├ {LIGHT_YELLOW}{etape}{RESET}\n"
     
     output += "\n"
     
@@ -168,7 +168,6 @@ def _find_line_number(filepath, code_to_find):
     else:
         return None  # Aucun chemin trouvé
     
-    # Reste du code inchangé (lecture du fichier)
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -200,10 +199,6 @@ def _clean_and_sort_code_lines(source_file, cause):
     root_code = cause.get('root_cause_code', '')
     root_line = _find_line_number(source_file, root_code)
     
-    # print(f"DEBUG: source_file={source_file}")
-    # print(f"DEBUG: root_code={repr(root_code)}")
-    # print(f"DEBUG: root_line={root_line}")
-
     if not root_line:
         return None
     
@@ -447,11 +442,6 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
         error_number: Numéro de l'erreur actuelle
         total_errors: Nombre total d'erreurs
     """
-    # Header
-
-    # Clear screen
-    # os.system('clear')
-
     print(_build_header(error_number, total_errors))
 
     # DEBUG: affiche le JSON brut
@@ -464,7 +454,7 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
 
     # Si erreur dans l'analyse Mistral
     if 'error' in analysis:
-        print(f"❌ Erreur Mistral : {analysis['error']}")
+        print(f"Erreur Mistral : {analysis['error']}")
         if 'raw' in analysis:
             print(f"\nRéponse brute :\n{analysis['raw']}")
         return

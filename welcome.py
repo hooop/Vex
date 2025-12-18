@@ -28,9 +28,8 @@ def clear_screen():
     """Clear the terminal screen."""
     os.system('clear')
 
-
 def display_logo():
-    """Display the VEX ASCII logo."""
+    """Display the Vex ASCII logo."""
     logo_lines = [
         "          ████",
         "██  ██  ██      ██  ██",
@@ -38,14 +37,13 @@ def display_logo():
         "  ██    ██      ██  ██",
         "          ████"
     ]
-    
     for line in logo_lines:
         print(DARK_GREEN + line + RESET)
         time.sleep(0.1)
     
     print()
     print("Valgrind Error Explorer")
-    print(GREEN + "Mistral AI intership project" + RESET)
+    print(GREEN + "Mistral AI internship project" + RESET)
     print()
 
 
@@ -145,50 +143,10 @@ def display_menu():
             return "quit"
         else:
             # Afficher le message d'erreur en dessous
-            print(RED + "Choix invalide. Appuyez sur ENTRÉE ou tapez Q.")
+            print(RED + "Choix invalide. Appuyez sur ENTRÉE ou tapez [Q].")
             # Remonter d'une ligne
             sys.stdout.write("\033[F")
             sys.stdout.write("\033[F")
             # Revenir au début de la ligne et effacer
             sys.stdout.write("\r" + " " * 80 + "\r")
             sys.stdout.flush()
-
-
-
-def main():
-    """Test function for standalone execution."""
-    clear_screen()
-    display_logo()
-    
-    # Test spinner
-    t = start_spinner("Lancement de Valgrind")
-    time.sleep(2)  # Simulate work
-    stop_spinner(t, "Lancement de Valgrind")
-    
-    t = start_spinner("Parsing du rapport")
-    time.sleep(2)  # Simulate work
-    stop_spinner(t, "Parsing du rapport")
-    
-    # Test summary with fake data
-    fake_data = {
-        'has_leaks': True,
-        'summary': {
-            'definitely_lost': 71,
-            'indirectly_lost': 54,
-            'total_leaked': 125
-        },
-        'leaks': [1, 2, 3]  # 3 leaks
-    }
-    display_summary(fake_data)
-    
-    # Test menu
-    choice = display_menu()
-    
-    if choice == "start":
-        print("\n✨ Démarrage de l'analyse...\n")
-    else:
-        print("\n👋 Au revoir !\n")
-
-
-if __name__ == "__main__":
-    main()

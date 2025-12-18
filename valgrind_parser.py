@@ -213,7 +213,7 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
     matches = re.finditer(location_pattern, excerpt)
 
     backtrace = []
-    allocation_line = None  # NOUVEAU : pour stocker la ligne d'allocation
+    allocation_line = None
     
     for match in matches:
         function = match.group(1)
@@ -246,7 +246,7 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
             "file": last["file"],
             "line": last["line"],
             "backtrace": backtrace,
-            "allocation_line": allocation_line  # NOUVEAU
+            "allocation_line": allocation_line
         }
 
     return {
@@ -254,73 +254,5 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
         "file": "unknown",
         "line": 0,
         "backtrace": [],
-        "allocation_line": allocation_line  # NOUVEAU
+        "allocation_line": allocation_line
     }
-
-
-def main():
-    """
-    Fonction de test standalone pour valider le parser.
-    """
-    import sys
-
-    if len(sys.argv) != 2:
-        print("Usage: python3 valgrind_parser.py <valgrind_report.txt>")
-        sys.exit(1)
-
-    report_file = sys.argv[1]
-
-    try:
-        with open(report_file, 'r') as f:
-            report = f.read()
-
-        result = parse_valgrind_report(report)
-
-        # Affichage du résultat de parsing
-        print("\n" + "="*60)
-        print("RÉSULTAT DU PARSING")
-        print("="*60 + "\n")
-
-        print(f"📊 Leaks détectés : {'OUI' if result['has_leaks'] else 'NON'}")
-        print()
-
-        if result["has_leaks"]:
-            print("📈 RÉSUMÉ :")
-            summary = result["summary"]
-            print(f"  • Definitely lost : {summary['definitely_lost']} bytes")
-            print(f"  • Indirectly lost : {summary['indirectly_lost']} bytes")
-            print(f"  • Possibly lost   : {summary['possibly_lost']} bytes")
-            print(f"  • TOTAL           : {summary['total_leaked']} bytes")
-            print()
-
-            print(f"🔍 DÉTAILS ({len(result['leaks'])} leaks) :")
-            for i, leak in enumerate(result["leaks"], 1):
-                print(f"\n  Leak #{i}:")
-                print(f"    Type     : {leak['type']}")
-                print(f"    Taille   : {leak['bytes']} bytes ({leak['blocks']} block(s))")
-                print(f"    Location : {leak['file']}:{leak['line']}")
-                print(f"    Fonction : {leak['function']}")
-
-                # Affichage de la backtrace si disponible
-                if leak.get('backtrace') and len(leak['backtrace']) > 1:
-                    print(f"\n    📚 Call stack ({len(leak['backtrace'])} niveaux) :")
-                    for j, frame in enumerate(leak['backtrace'], 1):
-                        indent = "      "
-                        # Dernier élément = où se fait l'allocation (le problème)
-                        arrow = "└→" if j == len(leak['backtrace']) else "├→"
-                        print(f"{indent}{arrow} {frame['function']} ({frame['file']}:{frame['line']})")
-        else:
-            print("✅ Aucune fuite mémoire détectée !")
-
-        print("\n" + "="*60 + "\n")
-
-    except FileNotFoundError:
-        print(f"❌ Erreur : le fichier '{report_file}' n'existe pas.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"❌ Erreur lors du parsing : {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

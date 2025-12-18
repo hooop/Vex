@@ -15,9 +15,9 @@ from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError
 from valgrind_parser import parse_valgrind_report
 from code_extractor import extract_call_stack
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
-from display import display_analysis, display_leak_menu  # ← AJOUT display_leak_menu
+from display import display_analysis, display_leak_menu
 from welcome import clear_screen, display_logo, start_spinner, stop_spinner, display_summary, display_menu
-from builder import rebuild_project  # ← AJOUT builder
+from builder import rebuild_project
 
 # Return codes
 SUCCESS = 0
@@ -25,27 +25,7 @@ ERROR = 1
 
 def print_error(message: str) -> None:
     """Affiche un message d'erreur formaté."""
-    print(f"\n❌ Erreur: {message}\n", file=sys.stderr)
-
-
-def print_usage() -> None:
-    """Affiche l'aide d'utilisation."""
-    print("""
-╔════════════════════════════════════════╗
-║              VEX v1.0                  ║
-║   Valgrind Error eXplorer.             ║
-╚════════════════════════════════════════╝
-
-Usage: vex <executable> [args...]
-
-Exemples:
-  vex ./my_program
-  vex ./push_swap 3 2 1
-  vex ./a.out
-
-Vex analyse automatiquement votre programme avec
-Valgrind, explique et propose une solution aux erreurs mémoire détectées.
-""")
+    print(f"\nErreur: {message}\n", file=sys.stderr)
 
 
 def _run_valgrind_analysis(executable: str, program_args: List[str]) -> Dict:
@@ -238,7 +218,6 @@ def main() -> int:
     """
     # Vérification des arguments
     if len(sys.argv) < 2:
-        print_usage()
         return ERROR
 
     # unpacking du tuple qui est retourné
@@ -255,7 +234,7 @@ def main() -> int:
         # Si la liste des leaks est vide on termnine
         parsed_errors = parsed_data.get('leaks', [])
         if not parsed_errors:
-            print("\nAucune erreur mémoire détectée ! Votre code is clean.\n")
+            print("\nAucune erreur mémoire détectée !\n")
             return SUCCESS
 
         # Affichage du résumé Valgrind
@@ -265,7 +244,7 @@ def main() -> int:
         choice = display_menu()
         
         if choice == "quit":
-            print("\n👋 Au revoir !\n")
+            print("Au revoir :)\n")
             return SUCCESS
 
         # ========================================
@@ -297,10 +276,10 @@ def main() -> int:
             if status == "need_recompile":
                 need_reanalysis = True
             elif status == "completed":
-                print("\n✨ Analyse terminée !\n")
+                print("\nAnalyse terminée !\n")
                 return SUCCESS
             elif status == "quit":
-                print("\n👋 Au revoir !\n")
+                print("Au revoir !\n")
                 return SUCCESS
 
     except ExecutableNotFoundError as e:
@@ -308,11 +287,11 @@ def main() -> int:
         return ERROR
 
     except ValgrindError as e:
-        print_error(f"Problème avec Valgrind:\n{e}")
+        print_error(f"Problème avec Valgrind :\n{e}")
         return ERROR
 
     except MistralAPIError as e:
-        print_error(f"Problème avec l'API Mistral:\n{e}")
+        print_error(f"Problème avec l'API Mistral :\n{e}")
         return ERROR
 
     except KeyboardInterrupt:
@@ -320,7 +299,7 @@ def main() -> int:
         return ERROR
 
     except Exception as e:
-        print_error(f"Erreur inattendue: {e}")
+        print_error(f"Erreur inattendue : {e}")
         import traceback
         traceback.print_exc()
         return ERROR

@@ -40,7 +40,7 @@ def rebuild_project(executable_path):
         return {
             'success': False,
             'output': (
-                "⚠️  Makefile requis pour la vérification automatique\n\n"
+                "Makefile requis pour la vérification automatique\n\n"
                 f"Créez un Makefile dans {project_dir}, puis relancez [v]\n"
                 "(ou utilisez [s] pour passer au leak suivant)"
             )
@@ -53,19 +53,19 @@ def rebuild_project(executable_path):
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=project_dir  # ← Exécuter depuis ce dossier
+            cwd=project_dir
         )
         
         if result.returncode == 0:
             return {
                 'success': True,
-                'output': '✅ Compilation réussie'
+                'output': 'Compilation réussie'
             }
         else:
             return {
                 'success': False,
                 'output': (
-                    "❌ Erreur de compilation\n\n"
+                    "Erreur de compilation\n\n"
                     f"{result.stderr if result.stderr else result.stdout}"
                 )
             }
@@ -74,7 +74,7 @@ def rebuild_project(executable_path):
         return {
             'success': False,
             'output': (
-                "❌ La compilation a dépassé le timeout de 30 secondes\n"
+                "La compilation a dépassé le timeout de 30 secondes\n"
                 "Vérifiez votre Makefile"
             )
         }
@@ -82,7 +82,7 @@ def rebuild_project(executable_path):
     except Exception as e:
         return {
             'success': False,
-            'output': f"❌ Erreur lors de la compilation : {str(e)}"
+            'output': f"Erreur lors de la compilation : {str(e)}"
         }
 
 

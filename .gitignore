@@ -1,6 +1,10 @@
 .env
+.DS_Store
 __pycache__/
 *.pyc
 test_mistral/
 accueil_vex.cpp
 vex.cpp
+test_pipeline.py
+test_extractor.py
+core

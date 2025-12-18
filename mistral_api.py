@@ -68,11 +68,11 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
         if analysis["type_leak"] not in [1, 2, 3]:
             raise ValueError(f"type_leak invalide : {analysis['type_leak']}")
         
-        # cause_reelle TOUJOURS obligatoire maintenant
+        # cause_reelle
         if not analysis.get("cause_reelle") or not analysis["cause_reelle"].get("root_cause_code"):
             raise ValueError("cause_reelle manquante")
         
-        # Validation file/function pour Type 2/3
+        # Validation file / function pour Type 2 / 3
         if analysis["type_leak"] in [2, 3]:
             cause = analysis.get("cause_reelle", {})
             if not cause.get("file") or not cause.get("function"):
@@ -284,43 +284,3 @@ def _call_mistral_api(prompt):
 
     except Exception as e:
         raise Exception(f"Erreur lors de l'appel API Mistral : {str(e)}")
-
-
-def main():
-    """
-    Fonction de test standalone.
-    """
-    # Exemple de test
-    test_error = {
-        'type': 'definitely lost',
-        'size': '40 bytes',
-        'address': '0x4a4f040',
-        'function': 'main',
-        'file': 'test.c',
-        'line': 10,
-        'backtrace': []
-    }
-
-    test_code = """=== CALL STACK WITH SOURCE CODE ===
-
---- Function 1: main ---
-File: test.c
-Line: 10
-
-int main(void)
-{
-    char *str;
-
-    str = malloc(40);
-    printf("Hello\\n");
-    return (0);
-}
-"""
-
-    print("🔍 Test du module Mistral API...\n")
-    result = analyze_memory_leak(test_error, test_code)
-    print(result)
-
-
-if __name__ == "__main__":
-    main()
