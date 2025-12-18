@@ -21,6 +21,21 @@ Valgrind détecte les fuites et indique où la mémoire a été allouée, mais i
 - Pourquoi cette ligne crée un leak
 - Comment le corriger concrètement
 
+<p align="center" width="100%">
+<video src="https://github.com/user-attachments/assets/7be31c2f-237b-4f91-84b4-e52598e19091" width="100%" controls></video>
+</p>
+
+## À qui s'adresse Vex ?
+
+**Vex** est conçu pour tous ceux qui apprennent ou utilisent le C. L'objectif n'est pas de masquer les erreurs mais d'apprendre en comprenant.
+
+Chaque analyse explique :
+- Le concept mémoire sous-jacent
+- L'erreur concrète dans votre code
+- La solution recommandée
+
+<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
+
 ## Fonctionnalités
 
 - **Analyse automatique** : Lance Valgrind, parse le rapport, extrait le contexte du code
@@ -29,10 +44,6 @@ Valgrind détecte les fuites et indique où la mémoire a été allouée, mais i
 - **Workflow interactif** : Analyse un leak à la fois pour corriger progressivement
 - **Catégorisation intelligente** : Identifie 3 types de leaks (mémoire jamais free, pointeur perdu, mémoire inaccessible)
 - **Focus "definitely lost"** : Se concentre sur les fuites mémoire critiques (v1.0)
-
-<p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/7be31c2f-237b-4f91-84b4-e52598e19091" width="100%" controls></video>
-</p>
 
 ## Installation & Usage
 
@@ -72,17 +83,6 @@ vex/
     ├── Makefile
     └── leaky.c         # Programme avec memory leaks
 ```
-
-## À qui s'adresse Vex ?
-
-**Vex** est conçu pour tous ceux qui apprennent ou utilisent le C. L'objectif n'est pas de masquer les erreurs mais d'apprendre en comprenant.
-
-Chaque analyse explique :
-- Le concept mémoire sous-jacent
-- L'erreur concrète dans votre code
-- La solution recommandée
-
-<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
 
 ## Roadmap
 
