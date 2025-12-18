@@ -37,7 +37,7 @@ J’ai créé **Vex** pour faire ce travail d’analyse automatiquement :
 - Focus "definitely lost" : Se concentre sur les fuites mémoire critiques (v1.0)
 
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/57901362-6542-4777-bd64-aac583395176" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/7be31c2f-237b-4f91-84b4-e52598e19091" width="100%" controls></video>
 </p>
 
 ## À qui s'adresse Vex ?
