@@ -20,7 +20,7 @@ Valgrind détecte les fuites et indique où la mémoire a été allouée, mais i
 - Comment le corriger concrètement
 
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/cb3b6ffb-1ba2-49ad-88a6-165ea9f3507d" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/4f76ecb4-00f8-43d3-8b3d-258cc7991ccd" width="100%" controls></video>
   
 </p>
 
