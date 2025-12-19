@@ -22,7 +22,7 @@ Valgrind détecte les fuites et indique où la mémoire a été allouée, mais i
 - Comment le corriger concrètement
 
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/7be31c2f-237b-4f91-84b4-e52598e19091" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/e936025a-f7f3-47c7-be27-9d7760ffb77a" width="100%" controls></video>
 </p>
 
 ## À qui s'adresse Vex ?
