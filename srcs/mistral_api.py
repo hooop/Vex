@@ -134,6 +134,7 @@ LABELS :
 - OWNER : variable simple qui reçoit malloc, responsable de free
 - EMBEDDED : mémoire stockée dans un conteneur (via -> ou [])
 - TRANSFERRED : responsabilité transférée via return
+- ALIAS : variable qui pointe vers la même mémoire qu'une autre
 - FREED : mémoire libérée
 - LEAK : état final non libéré
 
@@ -142,6 +143,7 @@ DÉTECTION SYNTAXIQUE :
 - x->field = malloc(...) → mémoire EMBEDDED dans x
 - x[i] = malloc(...) → mémoire EMBEDDED dans x
 - return ptr → ptr devient TRANSFERRED
+- ptr2 = ptr1 → ptr2 est ALIAS de ptr1
 - free(ptr) → ptr devient FREED
 
 ====================================================
@@ -161,6 +163,7 @@ Exemple : si Valgrind dit "ma_fonction (mon_fichier.c:77)", va à la ligne 77 da
 Une fois la ligne trouvée :
 - Quelle variable ou champ reçoit le malloc ?
 - Label initial : OWNER ou EMBEDDED ?
+- Si EMBEDDED : note PRÉCISÉMENT le chemin complet (ex: x->y->z)
 
 ÉTAPE 2 — REMONTER LA CALL STACK
 
@@ -170,6 +173,9 @@ Construis le chemin complet jusqu'au propriétaire final.
 ÉTAPE 3 — CHERCHER LE FREE
 
 Cherche un free() sur le propriétaire final ou un alias équivalent.
+
+ATTENTION : Si des ALIAS existent (ptr2 = ptr1), tous pointent vers la même mémoire.
+Identifie QUEL alias exact est utilisé dans chaque free().
 
 Si le free passe par une fonction intermédiaire :
 1. Analyse ce que fait cette fonction

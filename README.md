@@ -64,7 +64,14 @@ make build
 make run
 ```
 
-Le programme analyse automatiquement `test_mistral/leaky`, un exécutable de test contenant plusieurs types de memory leaks.
+**Note** : Pour cette démo, `make run` compile automatiquement `test_mistral/leaky.c` avant l'analyse. En usage réel, Vex accepte directement un exécutable :
+```bash
+# Usage démo (compile + analyse)
+make run
+
+# Usage réel (analyse directe d'un binaire)
+./vex.py ./mon_programme [args...]
+```
 
 ### Commandes disponibles
 ```bash

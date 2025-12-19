@@ -8,12 +8,6 @@ typedef struct Node {
 } Node;
 
 
-
-void leak_first_leak() {
-    char *str = malloc(100);
-    strcpy(str, "coucou");
-}
-
 Node *create_node(const char *str) {
     Node *n = malloc(sizeof(Node));
     n->data = malloc(strlen(str) + 1);
@@ -22,72 +16,6 @@ Node *create_node(const char *str) {
     return n;
 }
 
-
-
-void leak_type2_pointer_lost() {
-    char *ptr = malloc(50);
-    strcpy(ptr, "First allocation");
-free(ptr);
-    ptr = malloc(100);
-    strcpy(ptr, "Second allocation - first is lost!");
-    free(ptr);
-}
-
-void leak_type2_realloc_shadow() {
-    char *buffer = malloc(10);
-    strcpy(buffer, "small");
-    
-    char *shadow = buffer;
-    
-    buffer = realloc(buffer, 100); 
-    
-    strcpy(buffer, "This is now a much longer string in the reallocated buffer");
-    
-    free(buffer);
-}
-
-
-void leak_type3_all_pointers_lost() {
-    char *ptr1 = malloc(64);
-    char *ptr2 = ptr1;
-    char *ptr3 = ptr1;
-    
-    strcpy(ptr1, "Shared memory");
-
-    free(ptr1);
-
-    ptr1 = NULL;
-    ptr2 = NULL;
-    ptr3 = NULL;
-
-}
-
-void leak_type3_scope_exit() {
-    {
-        char *local = malloc(128);
-        strcpy(local, "Memory allocated in inner scope");
-        free(local);     }
-   
-}
-
-char *salut(str)
-{
-    str = malloc(100);
-    return str;
-}
-
-char *hello(str)
-{
-    char *str3 = salut(str);
-    return str3;
-}
-
-char* coucou()
-{
-    char *str = malloc(50);
-    char *str2 = hello(str);
-    return str2;
-}
 
 void process_nodes() {
 
@@ -101,7 +29,7 @@ void process_nodes() {
     Node *second = head->next;
     head->next = NULL;
     free(second->data);
-    free(second->next->data);
+
     free(second->next->next->data);
     free(second->next->next);
     free(second->next);
@@ -162,13 +90,13 @@ void level_1(void)
     t_node *node;
     
     node = level_2();
-   
+
     free(node); 
 }
 
 int main(void)
 {
+    process_nodes();
     level_1();
-    leak_first_leak();
     return (0);
 }
