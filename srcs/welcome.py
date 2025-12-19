@@ -31,11 +31,9 @@ def clear_screen():
 def display_logo():
     """Display the Vex ASCII logo."""
     logo_lines = [
-        "          ████",
-        "██  ██  ██      ██  ██",
-        "██  ██  ████      ██",
-        "  ██    ██      ██  ██",
-        "          ████"
+        "██  ██  ████  ██  ██",
+        "██  ██  ████    ██",
+        "  ██    ████  ██  ██"
     ]
     for line in logo_lines:
         print(DARK_GREEN + line + RESET)

@@ -34,7 +34,7 @@ Chaque analyse explique :
 - L'erreur concrète dans votre code
 - La solution recommandée
 
-<img src="leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
+<img src="assets/leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
 
 ## Fonctionnalités
 
