@@ -56,7 +56,7 @@ Chaque analyse explique :
 ### Lancement
 
 ```bash
-# Premier build (2-3 min, mis en cache ensuite)
+# Build
 make build
 
 # Lancer l'analyse sur le programme d'exemple
