@@ -12,6 +12,7 @@ import os
 import threading
 import time
 import sys
+import random
 
 
 # ANSI Color codes
@@ -28,18 +29,38 @@ def clear_screen():
     """Clear the terminal screen."""
     os.system('clear')
 
+import random
+
 def display_logo():
-    """Display the Vex ASCII logo."""
+    """Display the Vex ASCII logo with pixel-by-pixel animation."""
     logo_lines = [
-        "██  ██  ████  ██  ██",
-        "██  ██  ████    ██",
-        "  ██    ████  ██  ██"
+        "██  ██  ██████  ██  ██",
+        "██  ██  ██████    ██",
+        "  ██    ██████  ██  ██"
     ]
-    for line in logo_lines:
-        print(DARK_GREEN + line + RESET)
-        time.sleep(0.1)
     
-    print()
+    # Étape 1 : Parser les pixels
+    pixels = []
+    for line_idx, line in enumerate(logo_lines):
+        col = 0
+        while col < len(line):
+            if col < len(line) and line[col] == '█':
+                pixels.append((line_idx, col))
+                col += 2  # skip le deuxième █
+            else:
+                col += 1
+    
+    # Étape 2 : Mélanger
+    random.shuffle(pixels)
+    # Étape 3 : Afficher pixel par pixel
+    for line_idx, col in pixels:
+        # Positionner le curseur (attention : ANSI commence à 1, pas 0)
+        print(f"\033[{line_idx + 2};{col + 1}H{DARK_GREEN}██{RESET}", end="", flush=True)
+        time.sleep(0.06)  # ajuste la vitesse ici
+    
+    # Positionner le curseur après le logo
+    print(f"\033[{len(logo_lines) + 2};1H")
+    
     print("Valgrind Error Explorer")
     print(GREEN + "Mistral AI internship project" + RESET)
     print()

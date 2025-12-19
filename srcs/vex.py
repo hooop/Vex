@@ -8,6 +8,7 @@ Usage: vex <executable> [args...]
 
 import sys
 import os
+import time
 from typing import Dict, List, Tuple, Optional
 
 # Import des modules Vex
@@ -226,6 +227,7 @@ def main() -> int:
     try:
         # Affichage du logo et démarrage
         clear_screen()
+        time.sleep(0.5)
         display_logo()
 
         # Analyse Valgrind, renvoie un dictionnaire avec tous les leaks
