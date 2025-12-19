@@ -48,22 +48,33 @@ Chaque analyse explique :
 ## Installation & Usage
 
 ### Prérequis
-
-- Docker
-- Make
-- Clé API Mistral (créez un fichier `.env` avec `MISTRAL_API_KEY=votre_clé`)
+* **Docker**
+* **Make**
+* **Colima** (macOS uniquement)
+* **Clé API Mistral** : créez un fichier `.env` à la racine avec :
+```
+  MISTRAL_API_KEY=votre_clé
+```
 
 ### Lancement
-
 ```bash
-# Build
+# Build de l'image Docker
 make build
 
 # Lancer l'analyse sur le programme d'exemple
 make run
 ```
 
-Le programme analyse automatiquement `examples/leaky.c`, un fichier de test contenant plusieurs types de memory leaks.
+Le programme analyse automatiquement `test_mistral/leaky`, un exécutable de test contenant plusieurs types de memory leaks.
+
+### Commandes disponibles
+```bash
+make build    # Construire l'image Docker
+make run      # Compiler et analyser le programme de test
+make shell    # Ouvrir un shell dans le conteneur
+make clean    # Supprimer l'image Docker
+make rebuild  # Clean + build
+```
 
 ### Structure du projet
 
