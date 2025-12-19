@@ -7,6 +7,11 @@ typedef struct Node {
     struct Node *next;
 } Node;
 
+void init_buffer(void)
+{
+    char *buffer = malloc(100);
+    strcpy(buffer, "data");
+}
 
 Node *create_node(const char *str) {
     Node *n = malloc(sizeof(Node));
@@ -96,6 +101,7 @@ void level_1(void)
 
 int main(void)
 {
+    init_buffer();
     process_nodes();
     level_1();
     return (0);

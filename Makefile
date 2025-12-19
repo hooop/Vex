@@ -16,7 +16,7 @@ build:
 run:
 	docker run $(PLATFORM) -it --rm \
 		-v $(PWD):/app \
-		-w /app/examples \
+		-w /app/test_cases \
 		vex /bin/bash -c "make re && ../srcs/vex.py ./leaky"
 
 # Rebuild complet (clean + build)
