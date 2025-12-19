@@ -6,7 +6,33 @@ Ce dossier contient les cas de test utilisés pour valider Vex durant le dévelo
 
 Programme C contenant volontairement plusieurs memory leaks de complexité variable pour tester les capacités d'analyse de Vex.
 
-### Test 1 : process_nodes()
+### Test 1 : init_buffer()
+
+**Type de leak** : Type 1 (malloc sans free)
+
+**Complexité** : Triviale
+
+**Description** :
+Allocation simple de 100 bytes qui n'est jamais libérée. Variable locale détruite en fin de fonction sans libération préalable.
+
+**Ce que ça teste** :
+- Détection basique d'une allocation orpheline
+- Compréhension de la portée des variables locales
+- Identification du point d'insertion du free manquant
+
+**Résolution attendue** :
+```c
+void init_buffer(void)
+{
+    char *buffer = malloc(100);
+    strcpy(buffer, "data");
+    free(buffer);  // À ajouter
+}
+```
+
+---
+
+### Test 2 : process_nodes()
 
 **Type de leak** : Type 3 (conteneur libéré avant contenu)
 
@@ -29,7 +55,7 @@ free(second->next->next);
 
 ---
 
-### Test 2 : level_1() → level_5_alloc()
+### Test 3 : level_1() → level_5_alloc()
 
 **Type de leak** : Type 3 (conteneur libéré avant contenu)
 
