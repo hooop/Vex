@@ -9,4 +9,5 @@ test_pipeline.py
 test_extractor.py
 core
 examples/core
-logo.txt*.o
+logo.txt
+*.o
