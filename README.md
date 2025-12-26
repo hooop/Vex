@@ -1,8 +1,4 @@
-<pre>
-██  ██  ██████  ██  ██
-██  ██  ████      ██
-  ██    ██████  ██  ██
-</pre>
+![Vex Logo](./assets/logo.svg)
 
 # Vex - Valgrind Error eXplorer
 
