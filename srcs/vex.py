@@ -235,7 +235,7 @@ def main() -> int:
         clear_screen()
         # Masquer le vrai curseur
         print("\033[?25l", end="", flush=True)
-        time.sleep(0.3)
+        time.sleep(1)
         display_logo()
 
         # Analyse Valgrind, renvoie un dictionnaire avec tous les leaks
@@ -267,6 +267,7 @@ def main() -> int:
             if choice == "" or choice == "y":
                 break
             elif choice == "n":
+                print()
                 print()
                 return SUCCESS
             else:

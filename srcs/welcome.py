@@ -59,11 +59,11 @@ def display_logo():
     for line_idx, col in pixels:
         # Afficher le faux curseur jaune
         print(f"\033[{line_idx + 2};{col + 1}H{LIGHT_PINK}██{RESET}", end="", flush=True)
-        time.sleep(0.045)
+        time.sleep(0.035)
 
         # Afficher le pixel vert final
         print(f"\033[{line_idx + 2};{col + 1}H{DARK_GREEN}██{RESET}", end="", flush=True)
-        time.sleep(0.015)
+        time.sleep(0.001)
 
     # Positionner le curseur après le logo
     print(f"\033[{len(logo_lines) + 2};1H")
