@@ -28,7 +28,7 @@ void process_nodes() {
     head->next = create_node("second");
     head->next->next = create_node("third");
     head->next->next->next = create_node("fourth");
-    
+
     Node *third = head->next->next;
 
     Node *second = head->next;
@@ -40,8 +40,6 @@ void process_nodes() {
     free(second->next);
     free(second);
 
-    head->next = NULL;
-    
     free(head->data);
     free(head);
 }
@@ -57,7 +55,7 @@ typedef struct s_node
 char *level_5_alloc(void)
 {
     char *data;
-    
+
     data = malloc(100);
     return (data);
 }
@@ -65,7 +63,7 @@ char *level_5_alloc(void)
 char *level_4(void)
 {
     char *ptr;
-    
+
     ptr = level_5_alloc();
     return (ptr);
 }
@@ -73,9 +71,9 @@ char *level_4(void)
 t_node *level_3(void)
 {
     t_node *node;
-    
+
     node = malloc(sizeof(t_node));
-    node->data = level_4(); 
+    node->data = level_4();
     node->next = NULL;
     return (node);
 }
@@ -84,7 +82,7 @@ t_node *level_2(void)
 {
     t_node *buffer;
     t_node *temp;
-    
+
     buffer = level_3();
     temp = buffer;
     return (temp);
@@ -93,10 +91,10 @@ t_node *level_2(void)
 void level_1(void)
 {
     t_node *node;
-    
+
     node = level_2();
 
-    free(node); 
+    free(node);
 }
 
 int main(void)

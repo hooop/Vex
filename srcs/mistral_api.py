@@ -20,6 +20,8 @@ if not API_KEY:
         "Créez un fichier .env avec : MISTRAL_API_KEY=votre_clé"
     )
 
+# print(f"DEBUG: API_KEY = {API_KEY[:10]}..." if API_KEY else "DEBUG: API_KEY est None")
+
 client = Mistral(api_key=API_KEY)
 
 
@@ -29,7 +31,7 @@ def _clean_json_response(response):
     """Nettoie la réponse pour extraire le JSON pur."""
 
     response = response.strip()
-    
+
     # Retire les backticks markdown si présents
     if response.startswith("```"):
         # Retire la première ligne (```json ou ```)
@@ -38,7 +40,7 @@ def _clean_json_response(response):
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]  # Skip dernière ligne
         response = '\n'.join(lines)
-    
+
     return response.strip()
 
 def analyze_memory_leak(error_data, extracted_code_formatted):
@@ -50,48 +52,48 @@ def analyze_memory_leak(error_data, extracted_code_formatted):
     try:
         prompt = _build_prompt(error_data, extracted_code_formatted)
         response = _call_mistral_api(prompt)
-        
+
         # Nettoie la réponse
         cleaned = _clean_json_response(response)
-        
+
         # Parse le JSON
         analysis = json.loads(cleaned)
-        
+
         # Validation basique
-        required_keys = ["type_leak", "diagnostic", "resolution_principe", 
+        required_keys = ["type_leak", "diagnostic", "resolution_principe",
                         "resolution_code", "explications"]
-        
+
         for key in required_keys:
             if key not in analysis:
                 raise ValueError(f"Clé manquante : {key}")
-        
+
         if analysis["type_leak"] not in [1, 2, 3]:
             raise ValueError(f"type_leak invalide : {analysis['type_leak']}")
-        
+
         # cause_reelle
         if not analysis.get("cause_reelle") or not analysis["cause_reelle"].get("root_cause_code"):
             raise ValueError("cause_reelle manquante")
-        
+
         # Validation file / function pour Type 2 / 3
         if analysis["type_leak"] in [2, 3]:
             cause = analysis.get("cause_reelle", {})
             if not cause.get("file") or not cause.get("function"):
                 raise ValueError("cause_reelle incomplète (manque file/function)")
-        
+
         # Validation owner pour Type 3
         if analysis["type_leak"] == 3:
             cause = analysis.get("cause_reelle", {})
             owner = cause.get("owner", "")
             # resolution_code = analysis.get("resolution_code", "")
-            
+
             if not owner:
                 raise ValueError("Type 3 : owner manquant dans cause_reelle")
-            
+
             # if f"free({owner})" not in resolution_code:
             #     raise ValueError(f"Type 3 : resolution_code doit contenir free({owner})")
-        
+
         return analysis
-          
+
     except json.JSONDecodeError as e:
         # print(f"DEBUG: JSONDecodeError - {e}")
         # print(f"DEBUG: response existe? {response if 'response' in locals() else 'NON'}")
@@ -108,7 +110,7 @@ def _build_prompt(error_data, code_context):
     # print("CODE_CONTEXT REÇU :")
     # print(code_context)
     # print("="*60)
-    
+
     prompt = f"""Tu es un expert en C et en gestion mémoire. Tu analyses un memory leak détecté par Valgrind.
 
 ====================================================
