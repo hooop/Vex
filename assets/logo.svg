@@ -3,7 +3,7 @@
     text {
       font-family: 'Courier New', Courier, monospace;
       font-size: 16px;
-      fill: #00ffaf;
+      fill: #000000;
       white-space: pre;
     }
   </style>
