@@ -2,8 +2,8 @@
   <style>
     text {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 18px;
-      fill: #000;
+      font-size: 16px;
+      fill: #00ffaf;
       white-space: pre;
     }
   </style>
