@@ -1,6 +1,6 @@
 ![Vex Logo](./assets/logo.svg)
 
-# Memory Leak Analysis with Deterministic Path Tracking
+# Valgrind Error eXplorer
 
 ## Context
 
