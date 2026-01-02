@@ -1,135 +1,168 @@
 ![Vex Logo](./assets/logo.svg)
 
-# Vex - Valgrind Error eXplorer
+# Memory Leak Analysis with Deterministic Path Tracking
 
-**Vex** analyse automatiquement votre programme avec Valgrind, explique et propose une solution aux erreurs mémoire détectées.
+## Context
 
-## Le problème
+Memory leak analysis in C is a domain where Large Language Models (LLMs) perform poorly when used naively.  
+LLMs do not simulate memory: they describe graphs textually, propagate early mistakes, and often fail on non-trivial cases involving:
 
-Durant mes études à l'école 42, résoudre les memory leaks fut une tâche ardue.
-Valgrind détecte les fuites et indique où la mémoire a été allouée, mais il n'explique pas comment les corriger. Il faut remonter la pile d'appel, comprendre le contexte, identifier la vraie cause.
+- aliasing,
+- embedded allocations,
+- container lifetimes,
+- order-dependent frees.
 
-**Vex** fait ce travail d'analyse automatiquement :
+This project explores a different approach.
 
-- Quelle ligne cause réellement le problème
-- Pourquoi cette ligne crée un leak
-- Comment le corriger concrètement
+---
 
 <p align="center" width="100%">
 <video src="https://github.com/user-attachments/assets/806e0a9e-c8f1-4f40-93ef-b8e60c12cb1c" width="100%" controls></video>
 
 </p>
 
-## À qui s'adresse Vex ?
+## Core Idea
 
-**Vex** est conçu pour tous ceux qui apprennent ou utilisent le C. L'objectif n'est pas de masquer les erreurs mais d'apprendre en comprenant.
+Instead of asking a language model to find the root cause of a memory leak, this project separates the problem into two distinct phases:
 
-Chaque analyse explique :
-- Le concept mémoire sous-jacent
-- L'erreur concrète dans votre code
-- La solution recommandée
+1. **Deterministic root cause identification**  
+2. **LLM-assisted explanation and fix suggestion**
 
-<img src="assets/leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
-
-## Fonctionnalités
-
-- **Analyse automatique** : Lance Valgrind, parse le rapport, extrait le contexte du code
-- **Explications IA** : Utilise Mistral AI pour fournir des diagnostics pédagogiques
-- **Interface soignée** : Affichage terminal propre avec formatage ANSI
-- **Workflow interactif** : Analyse un leak à la fois pour corriger progressivement
-- **Catégorisation intelligente** : Identifie 3 types de leaks (mémoire jamais free, pointeur perdu, mémoire inaccessible)
-- **Focus "definitely lost"** : Se concentre sur les fuites mémoire critiques (v1.0)
-
-## Installation & Usage
-
-### Prérequis
-* **Docker**
-* **Make**
-* **Colima** (macOS uniquement)
-* **Clé API Mistral** : créez un fichier `.env` à la racine avec :
-```
-  MISTRAL_API_KEY=votre_clé
-```
-
-### Lancement
-```bash
-# Build de l'image Docker
-make build
-
-# Lancer l'analyse sur le programme d'exemple
-make run
-```
-
-**Note** : Pour cette démo, `make run` compile automatiquement `test_mistral/leaky.c` avant l'analyse. En usage réel, Vex accepte directement un exécutable :
-```bash
-# Usage démo (compile + analyse)
-make run
-
-# Usage réel (analyse directe d'un binaire)
-./vex.py ./mon_programme [args...]
-```
-
-### Commandes disponibles
-```bash
-make build    # Construire l'image Docker
-make run      # Compiler et analyser le programme de test
-make shell    # Ouvrir un shell dans le conteneur
-make clean    # Supprimer l'image Docker
-make rebuild  # Clean + build
-```
-
-### Structure du projet
-
-```
-vex/
-├── Dockerfile           # Configuration Docker (Ubuntu + Valgrind)
-├── Makefile             # Point d'entrée (build, run, shell)
-├── requirements.txt     # Dépendances Python
-├── srcs/                # Code source Python
-│   ├── vex.py          # Point d'entrée principal
-│   ├── valgrind_runner.py
-│   ├── valgrind_parser.py
-│   ├── code_extractor.py
-│   ├── mistral_analyzer.py
-│   └── display.py
-└── examples/            # Programmes de test
-    ├── Makefile
-    └── leaky.c         # Programme avec memory leaks
-```
-
-## Roadmap
-
-### Version actuelle (v1.0)
-- Analyse de programmes simples
-- Catégorisation des leaks (Type 1, 2, 3)
-- Focus sur "definitely lost" leaks
-- Workflow interactif avec recompilation
-- Limité à `examples/leaky.c` pour la démo
-
-### À venir
-- **Utilisation générique** : `vex ./mon_prog [args]` pour n'importe quel programme
-- **Support des free() externes** : Détecter les fonctions de nettoyage personnalisées
-- **Analyse multi-fichiers** : Projets C complexes avec plusieurs sources
-- **Export des analyses** : Sauvegarde des diagnostics en Markdown
-
-## Architecture technique
-
-**Pipeline d'analyse :**
-1. `valgrind_runner.py` : Exécute Valgrind avec les bons flags
-2. `valgrind_parser.py` : Parse le rapport, extrait la backtrace
-3. `code_extractor.py` : Récupère le contexte complet des fonctions
-4. `mistral_analyzer.py` : Envoie à Mistral AI pour analyse
-5. `display.py` : Formate et affiche le diagnostic
-
-**Prompt engineering :**
-Le prompt Mistral utilise un système de "labels" (OWNER, EMBEDDED, TRANSFERRED, FREED, LEAK) pour tracer la responsabilité de libération mémoire à travers la call stack.
-
-## Notes techniques
-
-- Développé sur Mac M3 (ARM64), utilise Docker avec émulation x86_64 pour Valgrind
-- Détection automatique de l'architecture dans le Makefile
-- Fonctionne nativement sur Linux x86_64
+The LLM is never responsible for discovering the leak.
 
 ---
 
-**Projet réalisé dans le cadre d'une candidature stage chez Mistral AI**
+## Deterministic Memory Path Tracking
+
+Given:
+
+- a Valgrind report pointing to a specific allocation,
+- the corresponding call stack,
+- the source code of the involved functions,
+
+the tool tracks **only one allocation at a time**, following its access paths through the code in execution order.  
+
+The algorithm maintains a structure describing:
+
+- which variables can still reach the allocation,
+- through which access paths,
+- and how these paths disappear over time.
+
+The analysis proceeds **line by line**, strictly following the execution trace implied by Valgrind.
+
+- No global reasoning  
+- No speculative cleanup functions  
+- No attempt to “understand the whole program”
+
+---
+
+<img src="assets/leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
+
+## Tracking Model
+
+Each reachable access path is represented by a **root**:
+
+- A root is a variable through which the allocation can be reached.  
+- Each root tracks:  
+  - the full access path (e.g. `node->data`)  
+  - all intermediate segments (`node`, `node->data`)  
+  - an optional origin, used to resolve aliases  
+
+The algorithm updates this structure when encountering:
+
+- alias creation  
+- reassignment  
+- `free()` calls  
+- scope exits  
+- returns across the call stack  
+
+When no valid access path remains and the allocation was not freed, a **root cause** is identified.
+
+---
+
+## Leak Categories
+
+The algorithm classifies leaks into **three concrete types**:
+
+1. **Missing free**  
+   The allocation is never freed before all access paths disappear.
+
+2. **Path loss by reassignment**  
+   The last remaining access path is overwritten or set to `NULL`.
+
+3. **Container freed before embedded data**  
+   A structure is freed while still owning embedded allocations.
+
+Each category points to a precise line of code responsible for the leak.
+
+---
+
+## Role of the LLM
+
+The LLM is used **after the deterministic phase**.  
+
+Input to the model:
+
+- Valgrind report  
+- Relevant source code  
+- Identified root cause  
+- Classified leak type  
+
+The model is asked to:
+
+- explain the leak step by step  
+- justify why the root cause is correct  
+- propose a minimal and correct fix  
+- explain relevant best practices to avoid recurrence
+
+The LLM **never guesses ownership or simulates memory**.
+
+---
+
+## Design Philosophy
+
+This project intentionally avoids:
+
+- global program analysis  
+- heuristics  
+- “smart” guessing  
+- overfitting to simple examples  
+
+Instead, it focuses on:
+
+- constrained reasoning  
+- explicit assumptions  
+- failure modes that are easy to detect and explain  
+- developer trust  
+
+When the algorithm cannot conclude, it fails explicitly.
+
+---
+
+## Limitations
+
+- No loop handling (by design)  
+- Single execution path only  
+- One allocation tracked at a time  
+- Relies on Valgrind’s accuracy  
+
+These limitations are accepted trade-offs to guarantee correctness within the supported scope.
+
+---
+
+## Why This Matters
+
+This project explores how deterministic analysis and language models can **complement each other**, by assigning each tool a role aligned with its actual strengths:
+
+- Deterministic analysis handles root cause identification with **zero false positives**
+- LLMs are constrained to tasks they excel at: explanation, pedagogy, and fix suggestions
+- The combination produces results that are **more trustworthy** than end-to-end LLM solutions
+
+The goal is not to replace Valgrind, but to make its output **actionable** for developers learning C.
+
+---
+
+## Status
+
+- The deterministic analysis is functional and has been tested on **non-trivial aliasing and container lifetime scenarios**.  
+- The LLM integration focuses on **explanation quality and fix correctness**, not detection.
