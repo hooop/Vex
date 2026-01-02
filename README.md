@@ -17,7 +17,7 @@ This project explores a different approach.
 ---
 
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/806e0a9e-c8f1-4f40-93ef-b8e60c12cb1c" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/5aabb00b-4cc9-4c64-b6e4-58ea0a599310" width="100%" controls></video>
 
 </p>
 
