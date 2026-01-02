@@ -76,6 +76,10 @@ def display_logo():
 # Global flag for spinner control
 _spinner_active = False
 
+# Global flag for block spinner control
+_block_spinner_active = False
+
+
 
 # def _spinner_animation(message):
 #     """Thread function that displays the animated spinner."""
@@ -142,6 +146,64 @@ def stop_spinner(thread, message):
     """
     global _spinner_active
     _spinner_active = False
+    thread.join()
+    sys.stdout.write(f"\r{GREEN}✓{RESET} {message}\n")
+    sys.stdout.flush()
+
+
+
+def _block_spinner_animation(message):
+    """Thread function that reveals/hides text with blocks."""
+    colors = [
+        "\033[38;5;225m",  # Rose
+        "\033[38;5;49m"    # Vert
+    ]
+    length = len(message)
+
+    pos_counter = 0
+    color_counter = 0
+
+    pos_speed = 0.25      # Plus grand = défilement plus lent
+    color_speed = 3    # Plus grand = clignotement plus lent
+
+    tick = 0
+
+    while _block_spinner_active:
+        phase = (pos_counter // length) % 2
+        pos = pos_counter % length
+        color = colors[color_counter % 2]
+
+        if phase == 0:
+            text = f"  {message[:pos + 1]}{color}{'▉' * (length - pos - 1)}{RESET}"
+        else:
+            text = f"  {color}{'▉' * (pos + 1)}{RESET}{message[pos + 1:]}"
+
+        sys.stdout.write(f"\r{text}")
+        sys.stdout.flush()
+
+        tick += 1
+        if tick % color_speed == 0:
+            color_counter += 1
+        if tick % pos_speed == 0:
+            pos_counter += 1
+
+        time.sleep(0.02)
+
+
+def start_block_spinner(message):
+    """Start the block spinner."""
+    global _block_spinner_active
+    _block_spinner_active = True
+    thread = threading.Thread(target=_block_spinner_animation, args=(message,))
+    thread.daemon = True
+    thread.start()
+    return thread
+
+
+def stop_block_spinner(thread, message):
+    """Stop the block spinner and display success."""
+    global _block_spinner_active
+    _block_spinner_active = False
     thread.join()
     sys.stdout.write(f"\r{GREEN}✓{RESET} {message}\n")
     sys.stdout.flush()

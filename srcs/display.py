@@ -21,7 +21,7 @@ def _build_header(error_number, total_errors):
 
     print()
     # Construction du texte central
-    text = f"‣ Leak {error_number} / {total_errors} | Valgrind Error eXplorer"
+    text = f"Vex Analysis | Leak {error_number} / {total_errors}"
 
     # Trouve la position du '|' dans le texte
     separator_pos = text.index('|')
@@ -30,7 +30,7 @@ def _build_header(error_number, total_errors):
     total_length = len(text)
 
     # Construction des lignes avec le '+' aligné sur le '|'
-    top_line = "―" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
+    top_line = "-" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
     bottom_line = top_line  # Identique
 
     # Assemblage final avec couleurs
@@ -53,7 +53,7 @@ def _build_valgrind_section(error):
     RESET = "\033[0m"
 
     # Titre
-    output = f"{GREEN}• Extrait Valgrind{RESET}\n\n"
+    output = f"{GREEN}• Valgrind Output{RESET}\n\n"
 
     # Première ligne avec infos complètes
     bytes_info = f"{error.get('bytes', '?')} bytes"
@@ -100,16 +100,84 @@ def _build_analysis_section(analysis):
     }
 
     # Titre
-    output = f"{GREEN}• Analyse Vex{RESET}\n\n"
+    output = f"{GREEN}• Diagnosis{RESET}\n\n"
 
     # Type de leak
     type_leak = analysis.get('type_leak', 0)
     if type_leak in type_leak_labels:
-        output += f"{DARK_YELLOW}→ {type_leak_labels[type_leak]}{RESET}\n\n"
+        output += f"{DARK_YELLOW} ➤ {type_leak_labels[type_leak]}{RESET}\n\n"
 
     # Diagnostic
     diagnostic = analysis.get('diagnostic', 'Aucun diagnostic disponible')
     output += f"{LIGHT_YELLOW}{diagnostic}{RESET}\n\n"
+
+    return output
+
+
+def _build_structure_section(analysis):
+    """
+    Construit la section Structure de Suivi (DEBUG).
+    """
+    GREEN = "\033[38;5;158m"
+    DARK_YELLOW = "\033[38;5;228m"
+    LIGHT_YELLOW = "\033[38;5;230m"
+    CYAN = "\033[38;5;117m"
+    GRAY = "\033[38;5;245m"
+    DARK_PINK = "\033[38;5;205m"
+    RESET = "\033[0m"
+
+    etape0 = analysis.get('etape0_identification', {})
+    evolution = analysis.get('structure_evolution', [])
+    root_etape = analysis.get('root_cause_detectee_etape', '')
+
+    if not etape0 and not evolution:
+        return ""
+
+    output = f"{GREEN}• Structure de Suivi (DEBUG){RESET}\n\n"
+
+    # Étape 0 : Identification
+    if etape0:
+        output += f"{DARK_YELLOW}Étape 0 — Identification :{RESET}\n"
+        output += f"  {LIGHT_YELLOW}Ligne {etape0.get('ligne_malloc_numero', '?')}:{RESET} {etape0.get('ligne_malloc_code', '?')}\n"
+        output += f"  {LIGHT_YELLOW}Variable malloc:{RESET} {etape0.get('variable_malloc', '?')}\n\n"
+
+    # Évolution
+    if evolution:
+        output += f"{DARK_YELLOW}Évolution de la structure :{RESET}\n\n"
+
+        for step in evolution:
+            etape_num = step.get('etape', '?')
+            fonction = step.get('fonction', '?')
+            ligne_num = step.get('ligne_numero', '?')
+            ligne_code = step.get('ligne_code', '?')
+            action = step.get('action', '?')
+            explication = step.get('explication', '')
+            structure = step.get('structure_apres', {})
+
+            # Marquer la root cause
+            is_root = str(etape_num) == str(root_etape)
+            prefix = f"{DARK_PINK}→ " if is_root else "  "
+
+            output += f"{prefix}{CYAN}Étape {etape_num}{RESET} [{action}] — {fonction}\n"
+            output += f"  {GRAY}Ligne {ligne_num}: {ligne_code}{RESET}\n"
+            if explication:
+                output += f"  {LIGHT_YELLOW}→ {explication}{RESET}\n"
+            output += f"  {LIGHT_YELLOW}Structure:{RESET}\n"
+
+            if not structure:
+                output += f"    {GRAY}(vide){RESET}\n"
+            else:
+                for racine, data in structure.items():
+                    cible = data.get('cible', '?')
+                    segments = data.get('segments', [])
+                    origine = data.get('origine')
+
+                    output += f"    {CYAN}{racine}{RESET}: cible={cible}\n"
+                    output += f"      segments={segments}\n"
+                    if origine:
+                        output += f"      origine={origine}\n"
+
+            output += "\n"
 
     return output
 
@@ -135,11 +203,11 @@ def _build_raisonnement_section(analysis):
         return ""
 
     # Titre
-    output = f"{GREEN}• Raisonnement{RESET}\n\n"
+    output = f"{GREEN}• Memory Trace{RESET}\n\n"
 
     # Chaque étape
     for i, etape in enumerate(raisonnement, 1):
-        output += f"{DARK_YELLOW}├ {LIGHT_YELLOW}{etape}{RESET}\n"
+        output += f"{DARK_YELLOW} {i}{DARK_YELLOW} ➤ {LIGHT_YELLOW}{etape}{RESET}\n"
 
     output += "\n"
 
@@ -297,7 +365,7 @@ def _build_code_section(error, analysis):
     type_leak = analysis.get('type_leak', 0)
 
     # Titre
-    output = f"{GREEN}• Code concerné{RESET}\n\n"
+    output = f"{GREEN}• Root Cause{RESET}\n\n"
 
     # Récupérer le fichier source
     source_file = cause.get('file', error.get('file', 'unknown'))
@@ -319,22 +387,22 @@ def _build_code_section(error, analysis):
     lines_to_display = []
 
     # 1. context_before (si pas de contributing)
-    if not cleaned['contributing'] and cleaned['context_before']:
-        lines_to_display.append({
-            'line': cleaned['context_before']['line'],
-            'code': cleaned['context_before']['code'],
-            'comment': None,
-            'is_root': False
-        })
+    # if not cleaned['contributing'] and cleaned['context_before']:
+    #     lines_to_display.append({
+    #         'line': cleaned['context_before']['line'],
+    #         'code': cleaned['context_before']['code'],
+    #         'comment': None,
+    #         'is_root': False
+    #     })
 
     # 2. contributing (déjà triés)
-    for contrib in cleaned['contributing']:
-        lines_to_display.append({
-            'line': contrib['line'],
-            'code': contrib['code'],
-            'comment': contrib['comment'],
-            'is_root': False
-        })
+    # for contrib in cleaned['contributing']:
+    #     lines_to_display.append({
+    #         'line': contrib['line'],
+    #         'code': contrib['code'],
+    #         'comment': contrib['comment'],
+    #         'is_root': False
+    #     })
 
     # 3. root_cause
     lines_to_display.append({
@@ -345,13 +413,13 @@ def _build_code_section(error, analysis):
     })
 
     # 4. context_after
-    if cleaned['context_after']:
-        lines_to_display.append({
-            'line': cleaned['context_after']['line'],
-            'code': cleaned['context_after']['code'],
-            'comment': None,
-            'is_root': False
-        })
+    # if cleaned['context_after']:
+    #     lines_to_display.append({
+    #         'line': cleaned['context_after']['line'],
+    #         'code': cleaned['context_after']['code'],
+    #         'comment': None,
+    #         'is_root': False
+    #     })
 
     # Affichage avec détection des sauts
     for i, item in enumerate(lines_to_display):
@@ -360,12 +428,12 @@ def _build_code_section(error, analysis):
             prev_line = lines_to_display[i-1]['line']
             curr_line = item['line']
             if curr_line - prev_line > 1:
-                output += f"   {GRAY}···{RESET}\n"
+                output += f"      {GRAY}-{RESET}\n"
 
         # Afficher la ligne
         if item['is_root']:
             # Root cause en rose
-            output += f"{DARK_PINK}➤  {item['line']} | {item['code']}{RESET}"
+            output += f"{DARK_PINK} ➤ {item['line']} | {item['code']}{RESET}"
             if item['comment']:
                 output += f"  {GRAY}// {item['comment']}{RESET}"
             output += "\n"
@@ -396,7 +464,7 @@ def _build_solution_section(analysis):
     RESET = "\033[0m"
 
     # Titre
-    output = f"{GREEN}• Solution{RESET}\n\n"
+    output = f"{GREEN}• Proposed Solution{RESET}\n\n"
 
     # Principe de résolution
     resolution = analysis.get('resolution_principe', 'Aucune résolution proposée')
@@ -423,7 +491,7 @@ def _build_explications_section(analysis):
     RESET = "\033[0m"
 
     # Titre
-    output = f"{GREEN}• Explications{RESET}\n\n"
+    output = f"{GREEN}• Explanation{RESET}\n\n"
 
     # Contenu des explications
     explications = analysis.get('explications', 'Aucune explication disponible')
@@ -444,12 +512,6 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
     """
     print(_build_header(error_number, total_errors))
 
-    # DEBUG: affiche le JSON brut
-    import json
-    # print("DEBUG JSON:")
-    # print(json.dumps(analysis, indent=2, ensure_ascii=False))
-    # print()
-
     print(_build_valgrind_section(error))
 
     # Si erreur dans l'analyse Mistral
@@ -460,6 +522,9 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
         return
 
     print(_build_analysis_section(analysis))
+
+    # Afficher la structure de suivi (DEBUG)
+    # print(_build_structure_section(analysis))
 
     print(_build_raisonnement_section(analysis))
 
@@ -479,34 +544,33 @@ def display_leak_menu():
     import sys
 
     MAGENTA = "\033[38;5;219m"
+    GREEN = "\033[38;5;158m"
     DARK_GREEN = "\033[38;5;49m"
+    GRAY = "\033[38;5;240m"
     RED = "\033[38;5;174m"
     RESET = "\033[0m"
 
-    print()
-    print(MAGENTA + "[v]" + RESET + " Vérifier (relancer Valgrind)")
-    print(MAGENTA + "[s]" + RESET + " Passer au suivant")
-    print(MAGENTA + "[q]" + RESET + " Quitter")
-    print()
+    BG_DARK_GREEN = "\033[48;5;49m"
+    BLACK = "\033[38;5;0m"
+    print(GRAY + "v ▸ Verify  ‧  n ▸ Next  ‧  q ▸ Quit")
+    print("")
+    # print(GRAY + "V" + GRAY + "erify  " + GRAY + "N" + GRAY + "ext  " +  GRAY + "Q" + GRAY + "uit" + RESET)
+    # print()
 
     while True:
         choice = input(DARK_GREEN + "vex > " + RESET).strip().lower()
-
-        if choice == "v":
+        if choice in ("", "v", "verify"):
             os.system('clear')
             return "verify"
-        elif choice == "s":
+        elif choice in ("n", "next"):
             os.system('clear')
             return "skip"
-        elif choice == "q":
+        elif choice in ("q", "quit"):
             os.system('clear')
             return "quit"
         else:
-            # Afficher le message d'erreur en dessous
-            print(RED + "Choix invalide. Appuyez sur [v], [s] ou [Q].")
-            # Remonter d'une ligne
+            print(RED + "Invalid choice." + RESET)
             sys.stdout.write("\033[F")
             sys.stdout.write("\033[F")
-            # Revenir au début de la ligne et effacer
             sys.stdout.write("\r" + " " * 80 + "\r")
             sys.stdout.flush()

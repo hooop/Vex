@@ -46,10 +46,17 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
         return None
 
     # Extract and return the function
+    # result = []
+    # for i in range(start_line, end_line + 1):
+    #     line_number = i + 1
+    #     result.append(f"{line_number}: {lines[i]}")
+    # return ''.join(result)
+
+    # Extract from Valgrind line to end of function
     result = []
-    for i in range(start_line, end_line + 1):
-        line_number = i + 1
-        result.append(f"{line_number}: {lines[i]}")
+    for i in range(line_number - 1, end_line + 1):  # line_number - 1 car index 0-based
+        line_num = i + 1
+        result.append(f"{line_num}: {lines[i]}")
     return ''.join(result)
 
 

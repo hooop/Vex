@@ -11,6 +11,7 @@ import os
 import time
 import threading
 from typing import Dict, List, Tuple, Optional
+from memory_tracker import find_root_cause, convert_extracted_code
 
 # Import des modules Vex
 from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError
@@ -18,7 +19,7 @@ from valgrind_parser import parse_valgrind_report
 from code_extractor import extract_call_stack
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
 from display import display_analysis, display_leak_menu
-from welcome import clear_screen, display_logo, start_spinner, stop_spinner, display_summary, display_menu
+from welcome import clear_screen, display_logo, start_spinner, stop_spinner, start_block_spinner, stop_block_spinner, display_summary, display_menu
 from builder import rebuild_project
 
 # Return codes
@@ -141,6 +142,32 @@ def _extract_source_code(parsed_errors: List[Dict]) -> None:
         stop_spinner(t, "Extracting source code")
 
 
+def _find_root_causes(parsed_errors: List[Dict]) -> None:
+    """
+    Find root cause for each leak using memory tracking algorithm.
+    """
+    t = start_spinner("Analyzing memory paths")
+
+    for error in parsed_errors:
+        if error.get('extracted_code'):
+            try:
+                converted = convert_extracted_code(error['extracted_code'])
+                root_cause = find_root_cause(converted)
+                if root_cause:
+                    error['root_cause'] = {
+                        'type': root_cause.leak_type,
+                        'line': root_cause.line,
+                        'function': root_cause.function,
+                        'file': root_cause.file,
+                        'steps': root_cause.steps
+                    }
+            except Exception as e:
+                # If analysis fails, continue without root cause
+                error['root_cause'] = None
+
+    stop_spinner(t, "Analyzing memory paths")
+
+
 def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
     """
     Traite tous les leaks un par un.
@@ -152,7 +179,10 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
     Returns:
         str: "completed" si tous traités, "need_recompile" si [v] choisi, "quit" si [q] choisi
     """
-    t = start_spinner("Calling Mistral AI")
+    # Masquer le vrai curseur
+    print("\033[?25l", end="", flush=True)
+
+    t = start_block_spinner("Calling Mistral AI")
 
     for i, error in enumerate(parsed_errors, 1):
         try:
@@ -161,9 +191,12 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
 
             # Arrêter le spinner avant le premier affichage
             if i == 1:
-                stop_spinner(t, "Calling Mistral AI")
+                stop_block_spinner(t, "Calling Mistral AI")
 
             # Affichage
+                # Réafficher le vrai curseur
+            print("\033[?25h", end="", flush=True)
+
             display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
 
             # Menu après chaque leak
@@ -192,7 +225,7 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
 
         except MistralAPIError as e:
             if i == 1:
-                stop_spinner(t, "Calling Mistral AI")
+                stop_block_spinner(t, "Calling Mistral AI")
             print_error(f"Error analyzing leak #{i}: {e}")
             continue
 
@@ -257,7 +290,7 @@ def main() -> int:
         #     print("Au revoir :)\n")
         #     return SUCCESS
 
-            # Réafficher le vrai curseur
+        # Réafficher le vrai curseur
         print("\033[?25h", end="", flush=True)
 
         # Menu : commencer ou quitter
@@ -303,6 +336,22 @@ def main() -> int:
 
             # Extraire le code source
             _extract_source_code(parsed_errors)
+
+            # Trouver les root causes
+            _find_root_causes(parsed_errors)
+
+            # DEBUG
+            # for i, err in enumerate(parsed_errors):
+            #     if err.get('root_cause'):
+            #         print(f"\n[DEBUG] Leak {i+1}:")
+            #         print(f"  Type: {err['root_cause']['type']}")
+            #         print(f"  File: {err['root_cause']['file']}")
+            #         print(f"  Function: {err['root_cause']['function']}")
+            #         print(f"  Line: {err['root_cause']['line'].strip()}")
+            #         print(f"  Steps:")
+            #         for step in err['root_cause']['steps']:
+            #             print(f"    - {step}")
+            # input("\n[DEBUG] Press Enter to continue...")
 
             # Traiter tous les leaks
             status = _process_all_leaks(parsed_errors, executable)

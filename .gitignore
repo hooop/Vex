@@ -11,3 +11,4 @@ core
 examples/core
 logo.txt
 *.o
+iteration_prompt.md

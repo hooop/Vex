@@ -18,10 +18,10 @@ def analyze_with_mistral(error_data):
 
     Args:
         error_data: Dict avec 'type', 'bytes', 'file', 'line', 'function',
-                   'backtrace', et 'extracted_code'
+                   'backtrace', 'extracted_code', et 'root_cause'
 
     Returns:
-        str: Analyse de Mistral
+        dict: Analyse de Mistral
 
     Raises:
         MistralAPIError: En cas d'erreur API
@@ -30,9 +30,13 @@ def analyze_with_mistral(error_data):
         # Formater le code extrait
         code_context = _format_extracted_code(error_data.get('extracted_code', []))
 
-        # Appel à l'API Mistral via mistral_api.py
-        analysis = analyze_memory_leak(error_data, code_context)
+        # Récupérer la root cause (calculée par memory_tracker)
+        root_cause = error_data.get('root_cause', None)
 
+        # Appel à l'API Mistral via mistral_api.py
+        analysis = analyze_memory_leak(error_data, code_context, root_cause)
+
+        # print("DEBUG\n", analysis)
         return analysis
 
     except Exception as e:
@@ -40,24 +44,21 @@ def analyze_with_mistral(error_data):
 
 
 def _format_extracted_code(extracted_code):
-    """
-    Formate le code extrait pour l'envoi à Mistral.
-
-    Args:
-        extracted_code: Liste de dicts avec 'file', 'function', 'line', 'code'
-
-    Returns:
-        str: Code formaté
-    """
     if not extracted_code:
         return "=== Aucun code source disponible ===\n"
 
     formatted = "=== CALL STACK WITH SOURCE CODE ===\n\n"
 
     for i, frame in enumerate(extracted_code, 1):
-        formatted += f"--- Function {i}: {frame['function']} ---\n"
-        formatted += f"File: {frame['file']}\n"
-        formatted += f"Line: {frame['line']}\n\n"
+        code_lines = frame['code'].strip().split('\n')
+        last_line_num = code_lines[-1].split(':')[0] if code_lines else '?'
+
+        formatted += f"{'='*50}\n"
+        formatted += f"FONCTION {i}: {frame['function']}\n"
+        formatted += f"Fichier: {frame['file']}\n"
+        formatted += f"Commence à la ligne: {frame['line']}\n"
+        formatted += f"Fin fonction: ligne {last_line_num}\n"
+        formatted += f"{'='*50}\n"
         formatted += frame['code']
         formatted += "\n\n"
 
