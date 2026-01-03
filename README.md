@@ -16,7 +16,9 @@ This project explores a different approach.
 
 ---
 
-[vex.webm](https://github.com/user-attachments/assets/13f25e92-832d-400a-b711-d0973c4fdff9)
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/ca014d1d-f072-4f68-8b1b-3ed67b5fa1b9" controls autoplay loop muted></video>
+</p>
 
 
 ## Core Idea
