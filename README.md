@@ -17,7 +17,7 @@ This project explores a different approach.
 ---
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/ca014d1d-f072-4f68-8b1b-3ed67b5fa1b9" controls autoplay loop muted></video>
+  <video src="https://github.com/user-attachments/assets/aa37d80d-7bf1-467a-913e-2f77aaad8b09" controls autoplay loop muted></video>
 </p>
 
 
