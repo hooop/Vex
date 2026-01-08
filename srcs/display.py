@@ -5,58 +5,64 @@ Formats and displays analysis results in the terminal.
 """
 import os
 import re
+import sys
+from typing import Optional
 
-def _build_header(error_number, total_errors):
+from type_defs import ValgrindError, MistralAnalysis, RealCause, CleanedCodeLines 
+
+def _build_header(error_number: int, total_errors: int) -> str:
     """
-    Construit le header avec les lignes horizontales et le séparateur aligné.
-
+    Build the header with horizontal lines and aligned separator.
+    
     Args:
-        error_number: Numéro du leak actuel
-        total_errors: Nombre total de leaks
-
+        error_number: Current leak number
+        total_errors: Total number of leaks
+    
     Returns:
-        str: Header formaté avec couleurs ANSI
+        Formatted header with ANSI colors
     """
+
     DARK_GREEN = "\033[38;5;49m"
     RESET = "\033[0m"
 
     print()
-    # Construction du texte central
+
+    # Build central text
     text = f"Vex Analysis | Leak {error_number} / {total_errors}"
 
-    # Trouve la position du '|' dans le texte
+    # Find position of '|' in text
     separator_pos = text.index('|')
 
-    # Calcule la longueur totale
     total_length = len(text)
 
-    # Construction des lignes avec le '+' aligné sur le '|'
+    # Build lines with '+' aligned on '|'
     top_line = "―" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
-    bottom_line = top_line  # Identique
+    bottom_line = top_line
 
-    # Assemblage final avec couleurs
+    # Final assembly with colors
     header = f"{DARK_GREEN}{top_line}\n{text}\n{bottom_line}{RESET}\n"
 
     return header
 
-def _build_valgrind_section(error):
+def _build_valgrind_section(error: ValgrindError) -> str:
     """
-    Construit la section Extrait Valgrind avec les bonnes couleurs.
+    Builds the Valgrind output section with proper colors.
 
     Args:
-        error: Dict de l'erreur (type, bytes, blocks, backtrace, etc.)
+        error: Error dictionary (type, bytes, blocks, backtrace, etc.)
 
     Returns:
-        str: Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
+
     GREEN = "\033[38;5;158m"
     LIGHT_YELLOW = "\033[38;5;230m"
     RESET = "\033[0m"
 
-    # Titre
+    # Title
     output = f"{GREEN}• Valgrind Output{RESET}\n\n"
 
-    # Première ligne avec infos complètes
+    # # First line with complete info
     bytes_info = f"{error.get('bytes', '?')} bytes"
     if error.get('blocks'):
         bytes_info += f" in {error['blocks']} blocks"
@@ -64,12 +70,12 @@ def _build_valgrind_section(error):
 
     output += f"{LIGHT_YELLOW}{bytes_info}\n"
 
-    # Ligne malloc (système) - utilise celle capturée ou fallback
+    # Malloc line (system) - use captured one or fallback
     allocation = error.get('allocation_line',
-        "    at 0x[...]: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)")
+        "    at malloc (system allocator)")
     output += f"{allocation}\n"
 
-    # Backtrace dans l'ordre Valgrind (allocation → main)
+    # Backtrace in Valgrind order (allocation → main)
     if error.get('backtrace'):
         backtrace_reversed = list(reversed(error['backtrace']))
         for frame in backtrace_reversed:
@@ -79,15 +85,15 @@ def _build_valgrind_section(error):
 
     return output
 
-def _build_analysis_section(analysis):
+def _build_analysis_section(analysis: MistralAnalysis) -> str:
     """
-    Construit la section Analyse Vex avec type de leak et diagnostic.
+    Builds the Vex analysis section with leak type and diagnostic.
 
     Args:
-        analysis : Dict retourné par Mistral
+        analysis: Dictionary returned by Mistral
 
     Returns:
-        str : Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
     GREEN = "\033[38;5;158m"
     DARK_YELLOW = "\033[38;5;228m"
@@ -95,104 +101,36 @@ def _build_analysis_section(analysis):
     RESET = "\033[0m"
 
     type_leak_labels = {
-        1: "La mémoire n'a jamais été libérée",
-        2: "Le pointeur a été perdu avant de libérer la mémoire",
-        3: "Plus aucun pointeur ne permet d'accéder à cette mémoire"
+        1: "Memory was never freed",
+        2: "Pointer was lost before freeing memory",
+        3: "No pointer can access this memory anymore"
     }
 
-    # Titre
+    # Title
     output = f"{GREEN}• Diagnosis{RESET}\n\n"
 
-    # Type de leak
+    # Leak type
     type_leak = analysis.get('type_leak', 0)
     if type_leak in type_leak_labels:
         output += f"{DARK_YELLOW} ➤ {type_leak_labels[type_leak]}{RESET}\n\n"
 
     # Diagnostic
-    diagnostic = analysis.get('diagnostic', 'Aucun diagnostic disponible')
+    diagnostic = analysis.get('diagnostic', 'No diagnostic available')
     output += f"{LIGHT_YELLOW}{diagnostic}{RESET}\n\n"
 
     return output
 
-
-# def _build_structure_section(analysis):
-#     """
-#     Construit la section Structure de Suivi (DEBUG).
-#     """
-#     GREEN = "\033[38;5;158m"
-#     DARK_YELLOW = "\033[38;5;228m"
-#     LIGHT_YELLOW = "\033[38;5;230m"
-#     CYAN = "\033[38;5;117m"
-#     GRAY = "\033[38;5;245m"
-#     DARK_PINK = "\033[38;5;205m"
-#     RESET = "\033[0m"
-
-#     etape0 = analysis.get('etape0_identification', {})
-#     evolution = analysis.get('structure_evolution', [])
-#     root_etape = analysis.get('root_cause_detectee_etape', '')
-
-#     if not etape0 and not evolution:
-#         return ""
-
-#     output = f"{GREEN}• Structure de Suivi (DEBUG){RESET}\n\n"
-
-#     # Étape 0 : Identification
-#     if etape0:
-#         output += f"{DARK_YELLOW}Étape 0 — Identification :{RESET}\n"
-#         output += f"  {LIGHT_YELLOW}Ligne {etape0.get('ligne_malloc_numero', '?')}:{RESET} {etape0.get('ligne_malloc_code', '?')}\n"
-#         output += f"  {LIGHT_YELLOW}Variable malloc:{RESET} {etape0.get('variable_malloc', '?')}\n\n"
-
-#     # Évolution
-#     if evolution:
-#         output += f"{DARK_YELLOW}Évolution de la structure :{RESET}\n\n"
-
-#         for step in evolution:
-#             etape_num = step.get('etape', '?')
-#             fonction = step.get('fonction', '?')
-#             ligne_num = step.get('ligne_numero', '?')
-#             ligne_code = step.get('ligne_code', '?')
-#             action = step.get('action', '?')
-#             explication = step.get('explication', '')
-#             structure = step.get('structure_apres', {})
-
-#             # Marquer la root cause
-#             is_root = str(etape_num) == str(root_etape)
-#             prefix = f"{DARK_PINK}→ " if is_root else "  "
-
-#             output += f"{prefix}{CYAN}Étape {etape_num}{RESET} [{action}] — {fonction}\n"
-#             output += f"  {GRAY}Ligne {ligne_num}: {ligne_code}{RESET}\n"
-#             if explication:
-#                 output += f"  {LIGHT_YELLOW}→ {explication}{RESET}\n"
-#             output += f"  {LIGHT_YELLOW}Structure:{RESET}\n"
-
-#             if not structure:
-#                 output += f"    {GRAY}(vide){RESET}\n"
-#             else:
-#                 for racine, data in structure.items():
-#                     cible = data.get('cible', '?')
-#                     segments = data.get('segments', [])
-#                     origine = data.get('origine')
-
-#                     output += f"    {CYAN}{racine}{RESET}: cible={cible}\n"
-#                     output += f"      segments={segments}\n"
-#                     if origine:
-#                         output += f"      origine={origine}\n"
-
-#             output += "\n"
-
-#     return output
-
-
-def _build_raisonnement_section(analysis):
+def _build_raisonnement_section(analysis: MistralAnalysis) -> str:
     """
-    Construit la section Raisonnement.
+    Builds the reasoning section.
 
     Args:
-        analysis: Dict retourné par Mistral
+        analysis: Dictionary returned by Mistral
 
     Returns:
-        str: Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
+
     GREEN = "\033[38;5;158m"
     DARK_YELLOW = "\033[38;5;228m"
     LIGHT_YELLOW = "\033[38;5;230m"
@@ -203,10 +141,10 @@ def _build_raisonnement_section(analysis):
     if not raisonnement:
         return ""
 
-    # Titre
+    # Title
     output = f"{GREEN}• Memory Trace{RESET}\n\n"
 
-    # Chaque étape
+    # Each step
     for i, etape in enumerate(raisonnement, 1):
         output += f"{DARK_YELLOW} {i}{DARK_YELLOW} ➤ {LIGHT_YELLOW}{etape}{RESET}\n"
 
@@ -216,26 +154,25 @@ def _build_raisonnement_section(analysis):
 
 
 
-def _find_line_number(filepath, code_to_find):
+def _find_line_number(filepath: str, code_to_find: str) -> Optional[int]:
     """
-    Cherche le numéro de ligne d'un code dans un fichier source.
+    Searches for the line number of code in a source file.
     """
-    import os
 
-    # Liste des chemins à essayer
+    # List of paths to try
     possible_paths = [
         filepath,                           # leaky.c
         os.path.join("src", filepath),      # src/leaky.c
         os.path.join("../src", filepath),   # ../src/leaky.c
     ]
 
-    # Essayer chaque chemin
+    # Try each path
     for path in possible_paths:
         if os.path.exists(path):
             filepath = path
             break
     else:
-        return None  # Aucun chemin trouvé
+        return None  # No path found
 
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -245,50 +182,50 @@ def _find_line_number(filepath, code_to_find):
 
     code_clean = code_to_find.strip()
 
-    for i, line in enumerate(lines, start=1):
+    for i, line in enumerate(lines, start = 1):
         if line.strip() == code_clean:
             return i
 
     return None
 
 
-def _clean_and_sort_code_lines(source_file, cause):
+def _clean_and_sort_code_lines(source_file: str, cause: RealCause) -> Optional[CleanedCodeLines]:
     """
-    Nettoie et trie les lignes de code selon leur position réelle dans le fichier.
-    Supprime les doublons et les lignes dans le mauvais ordre.
+    Cleans and sorts code lines according to their actual position in the file.
+    Removes duplicates and lines in wrong order.
 
     Args:
-        source_file: Chemin du fichier source
-        cause: Dict cause_reelle de Mistral
+        source_file: Source file path
+        cause: cause_reelle dict from Mistral
 
     Returns:
-        dict: Lignes nettoyées avec numéros de ligne
+        Cleaned lines with line numbers, or None if not found
     """
-    # 1. Trouver le numéro de la root_cause
+    # 1. Find root_cause line number
     root_code = cause.get('root_cause_code', '')
     root_line = _find_line_number(source_file, root_code)
 
     if not root_line:
         return None
 
-    # 2. Traiter les contributing_codes
+    # 2. Process contributing_codes
     contributing = []
-    seen_codes = set()  # Pour éviter les doublons
+    seen_codes = set()  # To avoid duplicates
 
     for contrib in cause.get('contributing_codes', []):
         code = contrib.get('code', '').strip()
 
-        # Ignorer si doublon
+        # Ignore if duplicate
         if code in seen_codes:
             continue
 
-        # Ignorer si égal à root_cause
+        # Ignore if equal to root_cause
         if code == root_code.strip():
             continue
 
         line_num = _find_line_number(source_file, code)
 
-        # Ignorer si pas trouvé ou après root_cause
+        # Ignore if not found or after root_cause
         if not line_num or line_num >= root_line:
             continue
 
@@ -299,33 +236,37 @@ def _clean_and_sort_code_lines(source_file, cause):
             'comment': contrib.get('comment')
         })
 
-    # Trier par numéro de ligne croissant
+    # Sort by ascending line number
     contributing.sort(key=lambda x: x['line'])
 
-    # 3. Traiter context_before
+    # 3. Process context_before
     context_before = None
     context_before_code = cause.get('context_before_code', '').strip()
 
     if context_before_code:
-        # Ignorer si déjà dans contributing ou égal à root
+        
+        # Ignore if already in contributing or equal to root
         if context_before_code not in seen_codes and context_before_code != root_code.strip():
             ctx_line = _find_line_number(source_file, context_before_code)
-            # Doit être avant root_cause
+            
+            # Must be before root_cause
             if ctx_line and ctx_line < root_line:
                 context_before = {
                     'line': ctx_line,
                     'code': context_before_code
                 }
 
-    # 4. Traiter context_after
+    # 4. Process context_after
     context_after = None
     context_after_code = cause.get('context_after_code', '').strip()
 
     if context_after_code:
-        # Ignorer si déjà vu ou égal à root
+
+        # Ignore if already seen or equal to root
         if context_after_code not in seen_codes and context_after_code != root_code.strip():
             ctx_line = _find_line_number(source_file, context_after_code)
-            # Doit être après root_cause
+            
+            # Must be after root_cause
             if ctx_line and ctx_line > root_line:
                 context_after = {
                     'line': ctx_line,
@@ -342,17 +283,18 @@ def _clean_and_sort_code_lines(source_file, cause):
     }
 
 
-def _build_code_section(error, analysis):
+def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
     """
-    Construit la section Code concerné avec le code source et la root cause.
+    Builds the code section with source code and root cause.
 
     Args:
-        error: Dict de l'erreur
-        analysis: Dict retourné par Mistral
+        error: Error dictionary
+        analysis: Dictionary returned by Mistral
 
     Returns:
-        str: Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
+
     GREEN = "\033[38;5;158m"
     LIGHT_YELLOW = "\033[38;5;230m"
     DARK_PINK = "\033[38;5;205m"
@@ -363,23 +305,25 @@ def _build_code_section(error, analysis):
     if not cause:
         return ""
 
-    # CAS SPÉCIAL : accolade fermante (Type 2 en fin de fonction)
+    # SPECIAL CASE: closing brace (Type 2 at end of function)
     if cause.get('root_cause_code', '').strip() == '}':
         target_function = cause.get('function')
         extracted_code = error.get('extracted_code', [])
         
         for frame in extracted_code:
             if frame.get('function') == target_function:
-                # Prendre la dernière ligne
+                
+                # Take last line
                 code_lines = frame.get('code', '').strip().split('\n')
                 if code_lines:
                     last_line = code_lines[-1]  # "127: }"
-                    # Extraire le numéro : "127: }" → 127
+                    
+                    # Extract number: "127: }" → 127
                     match = re.match(r'(\d+):', last_line)
                     if match:
                         line_num = int(match.group(1))
                         
-                        # Créer cleaned directement
+                        # Create cleaned directly
                         cleaned = {
                             'root_line': line_num,
                             'root_code': '}',
@@ -389,16 +333,15 @@ def _build_code_section(error, analysis):
                             'context_after': None
                         }
                         
-                        # Sauter _clean_and_sort_code_lines() et aller à l'affichage
-                        # (code continue en bas ↓)
+                        # Skip _clean_and_sort_code_lines() and go to display
                         break
         
-        if not cleaned:  # Si pas trouvé, erreur
+        if not cleaned:  # If not found, error
             output = f"{GREEN}• Root Cause{RESET}\n\n"
             output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
             return output
     else:
-        # CAS NORMAL : appeler _clean_and_sort_code_lines()
+        # NORMAL CASE: call _clean_and_sort_code_lines()
         source_file = cause.get('file', error.get('file', 'unknown'))
         cleaned = _clean_and_sort_code_lines(source_file, cause)
         
@@ -409,40 +352,22 @@ def _build_code_section(error, analysis):
 
     type_leak = analysis.get('type_leak', 0)
 
-    # Titre
+    # Title
     output = f"{GREEN}• Root Cause{RESET}\n\n"
 
-    # Récupérer le fichier source
+    # Get source file
     source_file = cause.get('file', error.get('file', 'unknown'))
 
-    # Fichier et fonction
+    # File and function
     display_function = cause.get('function', error.get('function', 'unknown'))
 
     output += f"{LIGHT_YELLOW}Fichier  : {source_file}:{cleaned['root_line']}\n"
     output += f"Fonction : {display_function}(){RESET}\n\n"
 
-    # Construire la liste ordonnée de toutes les lignes à afficher
+    # Build ordered list of all lines to display
     lines_to_display = []
 
-    # 1. context_before (si pas de contributing)
-    # if not cleaned['contributing'] and cleaned['context_before']:
-    #     lines_to_display.append({
-    #         'line': cleaned['context_before']['line'],
-    #         'code': cleaned['context_before']['code'],
-    #         'comment': None,
-    #         'is_root': False
-    #     })
-
-    # 2. contributing (déjà triés)
-    # for contrib in cleaned['contributing']:
-    #     lines_to_display.append({
-    #         'line': contrib['line'],
-    #         'code': contrib['code'],
-    #         'comment': contrib['comment'],
-    #         'is_root': False
-    #     })
-
-    # 3. root_cause
+    # root_cause
     lines_to_display.append({
         'line': cleaned['root_line'],
         'code': cleaned['root_code'],
@@ -450,33 +375,24 @@ def _build_code_section(error, analysis):
         'is_root': True
     })
 
-    # 4. context_after
-    # if cleaned['context_after']:
-    #     lines_to_display.append({
-    #         'line': cleaned['context_after']['line'],
-    #         'code': cleaned['context_after']['code'],
-    #         'comment': None,
-    #         'is_root': False
-    #     })
-
-    # Affichage avec détection des sauts
+    # Display with gap detection
     for i, item in enumerate(lines_to_display):
-        # Afficher "..." si saut détecté
+        
+        # Display "-" if gap detected
         if i > 0:
             prev_line = lines_to_display[i-1]['line']
             curr_line = item['line']
             if curr_line - prev_line > 1:
                 output += f"      {GRAY}-{RESET}\n"
 
-        # Afficher la ligne
+        # Display line
         if item['is_root']:
-            # Root cause en rose
             output += f"{DARK_PINK} ➤ {item['line']} | {item['code']}{RESET}"
             if item['comment']:
                 output += f"  {GRAY}// {item['comment']}{RESET}"
             output += "\n"
         else:
-            # Ligne normale
+            # Normal line
             output += f"   {item['line']} | {item['code']}"
             if item['comment']:
                 output += f"  {GRAY}// {item['comment']}{RESET}"
@@ -487,82 +403,79 @@ def _build_code_section(error, analysis):
     return output
 
 
-def _build_solution_section(analysis):
+def _build_solution_section(analysis: MistralAnalysis) -> str:
     """
-    Construit la section Solution avec le principe et le code.
+    Builds the solution section with principle and code.
 
     Args:
-        analysis: Dict retourné par Mistral
+        analysis: Dictionary returned by Mistral
 
     Returns:
-        str: Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
+
     GREEN = "\033[38;5;158m"
     LIGHT_YELLOW = "\033[38;5;230m"
     RESET = "\033[0m"
 
-    # Titre
     output = f"{GREEN}• Proposed Solution{RESET}\n\n"
 
-    # Principe de résolution
-    resolution = analysis.get('resolution_principe', 'Aucune résolution proposée')
+    resolution = analysis.get('resolution_principe', 'No resolution proposed')
     output += f"{LIGHT_YELLOW}{resolution}{RESET}\n\n"
 
-    # Code de résolution
+    # Resolution code
     if analysis.get('resolution_code'):
         output += f"{analysis['resolution_code']}\n\n"
 
     return output
 
-def _build_explications_section(analysis):
+
+def _build_explications_section(analysis: MistralAnalysis) -> str:
     """
-    Construit la section Explications.
+    Builds the explanations section.
 
     Args:
-        analysis: Dict retourné par Mistral
+        analysis: Dictionary returned by Mistral
 
     Returns:
-        str: Section formatée avec couleurs ANSI
+        Formatted section with ANSI colors
     """
+
     GREEN = "\033[38;5;158m"
     LIGHT_YELLOW = "\033[38;5;230m"
     RESET = "\033[0m"
 
-    # Titre
     output = f"{GREEN}• Explanation{RESET}\n\n"
 
-    # Contenu des explications
-    explications = analysis.get('explications', 'Aucune explication disponible')
+    # Explanation content
+    explications = analysis.get('explications', 'No explanation available')
     output += f"{LIGHT_YELLOW}{explications}{RESET}\n\n"
 
     return output
 
 
-def display_analysis(error, analysis, error_number=1, total_errors=1):
+def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_number: int = 1, total_errors: int = 1) -> None:
     """
-    Affiche une analyse de façon formatée dans le terminal.
+    Displays an analysis in formatted way in the terminal.
 
     Args:
-        error: Dict de l'erreur (type, bytes, file, line, etc.)
-        analysis: Dict retourné par Mistral (JSON parsé) ou dict avec 'error'
-        error_number: Numéro de l'erreur actuelle
-        total_errors: Nombre total d'erreurs
+        error: Error dictionary (type, bytes, file, line, etc.)
+        analysis: Dictionary returned by Mistral (parsed JSON) or dict with 'error'
+        error_number: Current error number
+        total_errors: Total number of errors
     """
     print(_build_header(error_number, total_errors))
 
     print(_build_valgrind_section(error))
 
-    # Si erreur dans l'analyse Mistral
+    # If error in Mistral analysis
     if 'error' in analysis:
-        print(f"Erreur Mistral : {analysis['error']}")
+        print(f"Mistral error : {analysis['error']}")
         if 'raw' in analysis:
-            print(f"\nRéponse brute :\n{analysis['raw']}")
+            print(f"\nRaw response :\n{analysis['raw']}")
         return
 
     print(_build_analysis_section(analysis))
-
-    # Afficher la structure de suivi (DEBUG)
-    # print(_build_structure_section(analysis))
 
     print(_build_raisonnement_section(analysis))
 
@@ -572,28 +485,21 @@ def display_analysis(error, analysis, error_number=1, total_errors=1):
 
     print(_build_explications_section(analysis))
 
-def display_leak_menu():
+def display_leak_menu() -> str:
     """
-    Affiche le menu après l'analyse d'un leak.
+    Displays the menu after analyzing a leak.
 
     Returns:
-        str: "verify", "skip", ou "quit"
+        "verify", "skip", or "quit"
     """
-    import sys
 
-    MAGENTA = "\033[38;5;219m"
-    GREEN = "\033[38;5;158m"
     DARK_GREEN = "\033[38;5;49m"
     GRAY = "\033[38;5;240m"
     RED = "\033[38;5;174m"
     RESET = "\033[0m"
 
-    BG_DARK_GREEN = "\033[48;5;49m"
-    BLACK = "\033[38;5;0m"
     print(GRAY + "v ▸ Verify  ‧  n ▸ Next  ‧  q ▸ Quit")
     print("")
-    # print(GRAY + "V" + GRAY + "erify  " + GRAY + "N" + GRAY + "ext  " +  GRAY + "Q" + GRAY + "uit" + RESET)
-    # print()
 
     while True:
         choice = input(DARK_GREEN + "vex > " + RESET).strip().lower()

@@ -6,20 +6,9 @@ Uses brace counting to identify function boundaries.
 """
 
 import os
-from typing import Optional, TypedDict
+from typing import Optional
 
-class StackFrame(TypedDict):
-    """Single frame from a Valgrind call stack."""
-    file: str
-    function: str
-    line: int
-
-class ExtractedFunction(TypedDict):
-    """Function extracted from source code."""
-    file: str
-    function: str
-    line: int
-    code: str
+from type_defs import StackFrame, ExtractedFunction
 
 def extract_function(filepath: str, line_number: int) -> Optional[str]:
     """

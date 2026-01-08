@@ -7,12 +7,8 @@ Used when the user wants to verify their corrections with [v].
 
 import os
 import subprocess
-from typing import TypedDict
 
-class BuildResult(TypedDict):
-    """Result of a project rebuild attempt."""
-    success: bool
-    output: str
+from type_defs import BuildResult
 
 def rebuild_project(executable_path: str) -> BuildResult:
     """
