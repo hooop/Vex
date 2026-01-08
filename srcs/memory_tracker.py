@@ -10,30 +10,6 @@ from typing import Optional
 from type_defs import TrackingEntry, RootCauseInfo, ProcessedFunction
 
 # =============================================================================
-# DATA STRUCTURES
-# =============================================================================
-
-# class TrackingEntry:
-#     """Represents a tracked path to allocated memory."""
-
-#     def __init__(self, target: str, segments: list[str], origin: Optional[str] = None):
-#         self.target = target      # Full path to memory (e.g., "head->next->data")
-#         self.segments = segments  # All prefixes (e.g., ["head", "head->next", "head->next->data"])
-#         self.origin = origin      # If alias, the original path. Otherwise None
-
-
-# class RootCause:
-#     """Represents the identified root cause of a memory leak."""
-
-#     def __init__(self, leak_type: int, line: str, function: str, file: str = "", steps: list[str] = None):
-#         self.leak_type = leak_type  # 1, 2, or 3
-#         self.line = line            # The responsible line of code
-#         self.function = function    # Function where root cause is located
-#         self.file = file            # Source file
-#         self.steps = steps or []    # Memory path steps for explanation
-
-
-# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
@@ -432,7 +408,7 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
     """
     tracking: dict[str, TrackingEntry] = {}
     current_func_index = 0
-    steps: list[str] = []  # Log des étapes pour Mistral
+    steps: list[str] = []  # Step log for explanation
 
     # =========================================================================
     # STEP 1: INITIALIZATION (first line = malloc)
@@ -444,7 +420,7 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
 
     apply_init(first_line, tracking)
 
-     # Log l'allocation initiale
+    # Log initial allocation
     root_key = list(tracking.keys())[0]
     target = tracking[root_key]["target"]
     steps.append(f"ALLOC: {target} in {current_func['function']}()")
@@ -460,7 +436,7 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
         # Check if we finished current function
         if line_index >= len(current_func['lines']):
 
-             # NOUVEAU : Si tracking non-vide, les variables locales sont perdues
+            # If tracking non-empty, local variables are lost
             if tracking:
                 steps.append(f"END: {current_func['function']}() exits with unreleased memory")
                 
