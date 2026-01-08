@@ -155,11 +155,11 @@ def _find_root_causes(parsed_errors: List[Dict]) -> None:
                 root_cause = find_root_cause(converted)
                 if root_cause:
                     error['root_cause'] = {
-                        'type': root_cause.leak_type,
-                        'line': root_cause.line,
-                        'function': root_cause.function,
-                        'file': root_cause.file,
-                        'steps': root_cause.steps
+                        'type': root_cause["leak_type"],
+                        'line': root_cause["line"],
+                        'function': root_cause["function"],
+                        'file': root_cause["file"],
+                        'steps': root_cause["steps"]
                     }
             except Exception as e:
                 # If analysis fails, continue without root cause
@@ -346,19 +346,6 @@ def main() -> int:
 
             # Trouver les root causes
             _find_root_causes(parsed_errors)
-
-            # DEBUG
-            # for i, err in enumerate(parsed_errors):
-            #     if err.get('root_cause'):
-            #         print(f"\n[DEBUG] Leak {i+1}:")
-            #         print(f"  Type: {err['root_cause']['type']}")
-            #         print(f"  File: {err['root_cause']['file']}")
-            #         print(f"  Function: {err['root_cause']['function']}")
-            #         print(f"  Line: {err['root_cause']['line'].strip()}")
-            #         print(f"  Steps:")
-            #         for step in err['root_cause']['steps']:
-            #             print(f"    - {step}")
-            # input("\n[DEBUG] Press Enter to continue...")
 
             # Traiter tous les leaks
             status = _process_all_leaks(parsed_errors, executable)

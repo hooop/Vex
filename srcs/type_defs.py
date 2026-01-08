@@ -29,6 +29,14 @@ class ExtractedFunction(TypedDict):
     code: str
 
 
+class ProcessedFunction(TypedDict):
+    """Function prepared for memory tracking algorithm."""
+    function: str
+    lines: list[str]
+    start_line: int
+    file: str
+
+
 class ContributingCode(TypedDict):
     """Contributing line of code that led to a memory leak."""
     code: str
@@ -46,7 +54,7 @@ class ValgrindSummary(TypedDict):
 
 class RootCauseInfo(TypedDict):
     """Root cause information identified by tracking algorithm."""
-    type: int
+    leak_type: int
     line: str
     function: str
     file: str
@@ -63,6 +71,13 @@ class RealCause(TypedDict):
     contributing_codes: list[ContributingCode]
     context_before_code: str
     context_after_code: str
+
+
+class TrackingEntry(TypedDict):
+    """Tracked path to allocated memory during leak analysis."""
+    target: str
+    segments: list[str]
+    origin: Optional[str]
 
 
 class ValgrindError(TypedDict):

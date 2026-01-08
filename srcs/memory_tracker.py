@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 memory_tracker.py
 
@@ -8,39 +5,39 @@ Memory tracking algorithm to find root cause of memory leaks.
 Analyzes code execution flow and tracks memory ownership.
 """
 
-import re
-from typing import Dict, List, Tuple, Optional
+from typing import Optional
 
+from type_defs import TrackingEntry, RootCauseInfo, ProcessedFunction
 
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
 
-class TrackingEntry:
-    """Represents a tracked path to allocated memory."""
+# class TrackingEntry:
+#     """Represents a tracked path to allocated memory."""
 
-    def __init__(self, target: str, segments: List[str], origin: Optional[str] = None):
-        self.target = target      # Full path to memory (e.g., "head->next->data")
-        self.segments = segments  # All prefixes (e.g., ["head", "head->next", "head->next->data"])
-        self.origin = origin      # If alias, the original path. Otherwise None
+#     def __init__(self, target: str, segments: list[str], origin: Optional[str] = None):
+#         self.target = target      # Full path to memory (e.g., "head->next->data")
+#         self.segments = segments  # All prefixes (e.g., ["head", "head->next", "head->next->data"])
+#         self.origin = origin      # If alias, the original path. Otherwise None
 
 
-class RootCause:
-    """Represents the identified root cause of a memory leak."""
+# class RootCause:
+#     """Represents the identified root cause of a memory leak."""
 
-    def __init__(self, leak_type: int, line: str, function: str, file: str = "", steps: List[str] = None):
-        self.leak_type = leak_type  # 1, 2, or 3
-        self.line = line            # The responsible line of code
-        self.function = function    # Function where root cause is located
-        self.file = file            # Source file
-        self.steps = steps or []    # Memory path steps for explanation
+#     def __init__(self, leak_type: int, line: str, function: str, file: str = "", steps: list[str] = None):
+#         self.leak_type = leak_type  # 1, 2, or 3
+#         self.line = line            # The responsible line of code
+#         self.function = function    # Function where root cause is located
+#         self.file = file            # Source file
+#         self.steps = steps or []    # Memory path steps for explanation
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def build_segments(path: str) -> List[str]:
+def build_segments(path: str) -> list[str]:
     """
     Decompose a path into all its prefixes.
     "head->next->data" → ["head", "head->next", "head->next->data"]
@@ -185,7 +182,7 @@ def is_reassignment(line: str, found_segment: str) -> bool:
 # SEGMENT MATCHING
 # =============================================================================
 
-def find_segment_in_line(line: str, tracking: Dict[str, TrackingEntry]) -> Tuple[bool, Optional[str], Optional[str], Optional[TrackingEntry], Optional[str]]:
+def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple[bool, Optional[str], Optional[str], Optional[TrackingEntry], Optional[str]]:
     """
     Check if line manipulates any tracked segment.
 
@@ -197,7 +194,7 @@ def find_segment_in_line(line: str, tracking: Dict[str, TrackingEntry]) -> Tuple
     # Collect all segments for lookup
     all_segments = {}
     for root_key, entry in tracking.items():
-        for segment in entry.segments:
+        for segment in entry["segments"]:
             all_segments[segment] = (root_key, entry)
 
     # CASE 1: free(...)
@@ -237,31 +234,33 @@ def find_segment_in_line(line: str, tracking: Dict[str, TrackingEntry]) -> Tuple
 # UPDATE RULES
 # =============================================================================
 
-def apply_init(line: str, tracking: Dict[str, TrackingEntry]) -> None:
+def apply_init(line: str, tracking: dict[str, TrackingEntry]) -> None:
     """
     Create initial tracking structure from malloc line.
     "n->data = malloc(...);" → root="n", target="n->data"
     "ptr = malloc(...);" → root="ptr", target="ptr"
     """
+
     left_side = extract_left_side(line)
     root = extract_root(left_side)
 
-    entry = TrackingEntry(
-        target=left_side,
-        segments=build_segments(left_side),
-        origin=None
-    )
+    entry: TrackingEntry = {
+    "target": left_side,
+    "segments": build_segments(left_side),
+    "origin": None
+    }
 
     tracking[root] = entry
 
 
-def apply_return(line: str, tracking: Dict[str, TrackingEntry], caller_line: str) -> None:
+def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str) -> None:
     """
     Substitute local root with receiver in calling function.
 
     "return n;" with caller_line "head->next = create_node();"
     → n becomes head->next, n->data becomes head->next->data
     """
+
     returned_var = extract_return_value(line)
     receiver = extract_left_side(caller_line)
     new_root = extract_root(receiver)
@@ -276,23 +275,23 @@ def apply_return(line: str, tracking: Dict[str, TrackingEntry], caller_line: str
 
     # Calculate suffix (what comes after returned variable in target)
     # If target = "n->data" and returned_var = "n", suffix = "->data"
-    suffix = old_entry.target.replace(returned_var, "", 1)
+    suffix = old_entry["target"].replace(returned_var, "", 1)
 
     # New target = receiver + suffix
     new_target = receiver + suffix
 
-    new_entry = TrackingEntry(
-        target=new_target,
-        segments=build_segments(new_target),
-        origin=None  # This becomes the new canonical form
-    )
+    new_entry: TrackingEntry = {
+    "target": new_target,
+    "segments": build_segments(new_target),
+    "origin": None  # This becomes the new canonical form
+    }
 
     # Remove old root, add new one
     del tracking[old_root]
     tracking[new_root] = new_entry
 
 
-def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tracking: Dict[str, TrackingEntry]) -> None:
+def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tracking: dict[str, TrackingEntry]) -> None:
     """
     Add a new root that points to the same memory.
 
@@ -300,21 +299,22 @@ def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tr
     and source_entry.target = "head->next->next->data"
     → suffix = "->next->data", new_target = "second->next->data"
     """
+
     new_name = extract_left_side(line)
 
     # Calculate suffix (what remains of target after aliased segment)
-    suffix = source_entry.target.replace(aliased_segment, "", 1)
+    suffix = source_entry["target"].replace(aliased_segment, "", 1)
 
-    new_entry = TrackingEntry(
-        target=new_name + suffix,
-        segments=build_segments(new_name + suffix),
-        origin=aliased_segment
-    )
+    new_entry: TrackingEntry = {
+    "target": new_name + suffix,
+    "segments": build_segments(new_name + suffix),
+    "origin": aliased_segment
+    }
 
     tracking[new_name] = new_entry
 
 
-def apply_reassignment(root_key: str, tracking: Dict[str, TrackingEntry], line: str, function: str) -> Optional[RootCause]:
+def apply_reassignment(root_key: str, tracking: dict[str, TrackingEntry], line: str, function: str) -> Optional[RootCauseInfo]:
     """
     Remove the concerned root (path is broken).
     Aliases are NOT impacted (they have their own pointer).
@@ -324,12 +324,19 @@ def apply_reassignment(root_key: str, tracking: Dict[str, TrackingEntry], line: 
     del tracking[root_key]
 
     if len(tracking) == 0:
-        return RootCause(leak_type=2, line=line, function=function)
+        if len(tracking) == 0:
+            return {
+                "leak_type": 2,
+                "line": line,
+                "function": function,
+                "file": "",
+                "steps": []
+            }
 
     return None
 
 
-def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: str, tracking: Dict[str, TrackingEntry], function: str) -> Optional[RootCause]:
+def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: str, tracking: dict[str, TrackingEntry], function: str) -> Optional[RootCauseInfo]:
     """
     Handle free() call.
 
@@ -340,14 +347,26 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
     free_arg = extract_free_argument(line)
 
     # If target starts with free_arg + "->", we're freeing the container before its content
-    if entry.target.startswith(free_arg + "->"):
-        return RootCause(leak_type=3, line=line, function=function)
+    if entry["target"].startswith(free_arg + "->"):
+        return {
+            "leak_type": 3,
+            "line": line,
+            "function": function,
+            "file": "",
+            "steps": []
+        }
 
     # Otherwise, remove this root
     del tracking[root_key]
 
     if len(tracking) == 0:
-        return RootCause(leak_type=1, line=line, function=function)
+        return {
+            "leak_type": 1,
+            "line": line,
+            "function": function,
+            "file": "",
+            "steps": []
+        }
 
     return None
 
@@ -356,7 +375,7 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
 # INTEGRATION HELPER
 # =============================================================================
 
-def convert_extracted_code(extracted_functions: List[Dict]) -> List[Dict]:
+def convert_extracted_code(extracted_functions: list[dict]) -> list[dict]:
     """
     Convert code_extractor output to memory_tracker input format.
 
@@ -397,7 +416,7 @@ def convert_extracted_code(extracted_functions: List[Dict]) -> List[Dict]:
 # MAIN ALGORITHM
 # =============================================================================
 
-def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
+def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[RootCauseInfo]:
     """
     Main algorithm to find root cause of a memory leak.
 
@@ -411,9 +430,9 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
     Returns:
         RootCause with type (1, 2, or 3), line, function, file, and steps
     """
-    tracking: Dict[str, TrackingEntry] = {}
+    tracking: dict[str, TrackingEntry] = {}
     current_func_index = 0
-    steps: List[str] = []  # Log des étapes pour Mistral
+    steps: list[str] = []  # Log des étapes pour Mistral
 
     # =========================================================================
     # STEP 1: INITIALIZATION (first line = malloc)
@@ -425,9 +444,9 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
 
     apply_init(first_line, tracking)
 
-    # Log l'allocation initiale
+     # Log l'allocation initiale
     root_key = list(tracking.keys())[0]
-    target = tracking[root_key].target
+    target = tracking[root_key]["target"]
     steps.append(f"ALLOC: {target} in {current_func['function']}()")
 
     line_index = 1  # Start after malloc
@@ -444,26 +463,28 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
              # NOUVEAU : Si tracking non-vide, les variables locales sont perdues
             if tracking:
                 steps.append(f"END: {current_func['function']}() exits with unreleased memory")
-                return RootCause(
-                    leak_type=2,
-                    line="}",
-                    function=current_func['function'],
-                    file=current_file,
-                    steps=steps
-                )
+                
+                return {
+                    "leak_type": 2,
+                    "line": "}",
+                    "function": current_func['function'],
+                    "file": current_file,
+                    "steps": steps
+                }
     
             # Move to next function if available
             current_func_index += 1
 
             if current_func_index >= len(extracted_functions):
                 # End of code, structure not empty → Type 1
-                return RootCause(
-                    leak_type=1,
-                    line="end of program",
-                    function=current_func['function'],
-                    file=current_file,
-                    steps=steps
-                )
+
+                return {
+                    "leak_type": 1,
+                    "line": "end of program",
+                    "function": current_func['function'],
+                    "file": current_file,
+                    "steps": steps
+                }
 
             current_func = extracted_functions[current_func_index]
             current_file = current_func.get('file', current_file)
@@ -492,12 +513,12 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
             next_func = extracted_functions[current_func_index + 1]
             caller_line = next_func['lines'][0]
 
-            old_target = entry.target
+            old_target = entry["target"]
             apply_return(line, tracking, caller_line)
 
             # Log the return
             new_root = list(tracking.keys())[0]
-            new_target = tracking[new_root].target
+            new_target = tracking[new_root]["target"]
             steps.append(f"RETURN: {old_target} -> {new_target} in {next_func['function']}()")
 
             # Move to next function, after the call line
@@ -513,8 +534,9 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
             root_cause = apply_free(line, found_segment, entry, root_key, tracking, func_name)
 
             if root_cause is not None:
-                root_cause.file = current_file
-                root_cause.steps = steps
+                root_cause["file"] = current_file
+                root_cause["steps"] = steps
+                
                 return root_cause
 
             line_index += 1
@@ -535,8 +557,8 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
             root_cause = apply_reassignment(root_key, tracking, line, func_name)
 
             if root_cause is not None:
-                root_cause.file = current_file
-                root_cause.steps = steps
+                root_cause["file"] = current_file
+                root_cause["steps"] = steps
                 return root_cause
 
             line_index += 1
