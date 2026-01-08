@@ -6,8 +6,20 @@ Uses brace counting to identify function boundaries.
 """
 
 import os
-from typing import List, Dict, Optional
+from typing import Optional, TypedDict
 
+class StackFrame(TypedDict):
+    """Single frame from a Valgrind call stack."""
+    file: str
+    function: str
+    line: int
+
+class ExtractedFunction(TypedDict):
+    """Function extracted from source code."""
+    file: str
+    function: str
+    line: int
+    code: str
 
 def extract_function(filepath: str, line_number: int) -> Optional[str]:
     """
@@ -45,22 +57,15 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
     if end_line is None:
         return None
 
-    # Extract and return the function
-    # result = []
-    # for i in range(start_line, end_line + 1):
-    #     line_number = i + 1
-    #     result.append(f"{line_number}: {lines[i]}")
-    # return ''.join(result)
-
     # Extract from Valgrind line to end of function
     result = []
-    for i in range(line_number - 1, end_line + 1):  # line_number - 1 car index 0-based
+    for i in range(line_number - 1, end_line + 1):  # line_number - 1 because index is 0-based
         line_num = i + 1
         result.append(f"{line_num}: {lines[i]}")
     return ''.join(result)
 
 
-def _find_function_start(lines: List[str], from_line: int) -> Optional[int]:
+def _find_function_start(lines: list[str], from_line: int) -> Optional[int]:
     """
     Find the start of a function by going backwards from a line.
     Looks for opening brace at the start of a line or after a closing parenthesis.
@@ -94,7 +99,7 @@ def _find_function_start(lines: List[str], from_line: int) -> Optional[int]:
     return None
 
 
-def _find_function_end(lines: List[str], start_line: int) -> Optional[int]:
+def _find_function_end(lines: list[str], start_line: int) -> Optional[int]:
     """
     Find the end of a function by counting braces from the start.
 
@@ -126,7 +131,7 @@ def _find_function_end(lines: List[str], start_line: int) -> Optional[int]:
     return None
 
 
-def extract_call_stack(stack_frames: List[Dict]) -> List[Dict]:
+def extract_call_stack(stack_frames: list[StackFrame]) -> list[ExtractedFunction]:
     """
     Extract all functions from a call stack, from main to the problematic function.
 
@@ -215,7 +220,7 @@ def _find_source_file(filename: str) -> Optional[str]:
     return None
 
 
-def format_for_ai(extracted_functions: List[Dict]) -> str:
+def format_for_ai(extracted_functions: list[ExtractedFunction]) -> str:
     """
     Format extracted functions into a clean string for AI analysis.
 

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 builder.py
 
@@ -8,46 +5,50 @@ Module responsible for recompiling the user's C project.
 Used when the user wants to verify their corrections with [v].
 """
 
-import subprocess
 import os
-from typing import Dict
+import subprocess
+from typing import TypedDict
 
+class BuildResult(TypedDict):
+    """Result of a project rebuild attempt."""
+    success: bool
+    output: str
 
-def rebuild_project(executable_path):
+def rebuild_project(executable_path: str) -> BuildResult:
     """
-    Recompile le projet de l'utilisateur.
+    Recompile the user's project using make.
     
     Args:
-        executable_path: Chemin vers l'exécutable (ex: "./test_mistral/leaky")
+        executable_path: Path to the executable (e.g., "./test_mistral/leaky")
     
     Returns:
-        dict: {'success': bool, 'output': str}
+        dict: Dictionary with keys:
+            - 'success' (bool): Whether compilation succeeded
+            - 'output' (str): Compilation output or error message
     """
-    import os
-    import subprocess
-    
-    # Extraire le dossier de l'exécutable
+     
+    # Extract the project directory from executable path
     project_dir = os.path.dirname(executable_path)
     
-    # Si pas de dossier (ex: "./leaky"), utiliser le répertoire courant
+    # If no directory (e.g., "./leaky"), use current directory
     if not project_dir:
         project_dir = "."
     
-    # Chercher le Makefile dans ce dossier
+    # Look for Makefile in this directory
     makefile_path = os.path.join(project_dir, "Makefile")
     
     if not os.path.exists(makefile_path):
         return {
             'success': False,
             'output': (
-                "Makefile requis pour la vérification automatique\n\n"
-                f"Créez un Makefile dans {project_dir}, puis relancez [v]\n"
-                "(ou utilisez [s] pour passer au leak suivant)"
+                "Makefile required for automatic verification\n\n"
+                f"Create a Makefile in {project_dir}, then retry [v]\n"
+                "(or use [n] to skip to next leak)"
             )
         }
     
     try:
-        # Exécuter make depuis le dossier du projet
+        # Run make from the project directory
         result = subprocess.run(
             ['make'],
             capture_output=True,
@@ -59,13 +60,13 @@ def rebuild_project(executable_path):
         if result.returncode == 0:
             return {
                 'success': True,
-                'output': 'Compilation réussie'
+                'output': 'Compilation successful'
             }
         else:
             return {
                 'success': False,
                 'output': (
-                    "Erreur de compilation\n\n"
+                    "Compilation error\n\n"
                     f"{result.stderr if result.stderr else result.stdout}"
                 )
             }
@@ -74,28 +75,13 @@ def rebuild_project(executable_path):
         return {
             'success': False,
             'output': (
-                "La compilation a dépassé le timeout de 30 secondes\n"
-                "Vérifiez votre Makefile"
+                "Compilation exceeded 30 second timeout\n"
+                "Check your Makefile"
             )
         }
     
     except Exception as e:
         return {
             'success': False,
-            'output': f"Erreur lors de la compilation : {str(e)}"
+            'output': f"Error during compilation: {str(e)}"
         }
-
-
-def main():
-    """
-    Test function for standalone execution.
-    """
-    print("🔨 Test du module builder...\n")
-    result = rebuild_project()
-    
-    print(f"Success: {result['success']}")
-    print(f"Output:\n{result['output']}")
-
-
-if __name__ == "__main__":
-    main()

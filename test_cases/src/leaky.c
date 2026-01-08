@@ -126,11 +126,9 @@ void example(void)
     free(a);
 }
 
-
 int main(void)
 {
     example();
-
     process_nodes();
 
     return (0);
