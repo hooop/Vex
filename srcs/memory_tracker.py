@@ -7,18 +7,22 @@ Analyzes code execution flow and tracks memory ownership.
 
 from typing import Optional
 
-from type_defs import TrackingEntry, RootCauseInfo, ProcessedFunction
+from type_defs import TrackingEntry, RootCauseInfo, ProcessedFunction, ExtractedFunction
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
 def build_segments(path: str) -> list[str]:
+    """Decompose a path into all its prefixes.
+    
+    Args:
+        path: Memory path to decompose (e.g., "head->next->data")
+        
+    Returns:
+        List of all prefixes (e.g., ["head", "head->next", "head->next->data"])
     """
-    Decompose a path into all its prefixes.
-    "head->next->data" → ["head", "head->next", "head->next->data"]
-    "ptr" → ["ptr"]
-    """
+
     if "->" not in path:
         return [path]
 
@@ -35,33 +39,44 @@ def build_segments(path: str) -> list[str]:
 
 
 def extract_root(path: str) -> str:
+    """Extract the base variable from a path.
+    
+    Args:
+        path: Memory path (e.g., "head->next->data")
+        
+    Returns:
+        Base variable name (e.g., "head")
     """
-    Extract the base variable from a path.
-    "head->next->data" → "head"
-    "ptr" → "ptr"
-    """
+
     if "->" in path:
         return path.split("->")[0]
     return path
 
 def extract_free_argument(line: str) -> str:
+    """Extract the argument from a free() call.
+    
+    Args:
+        line: Code line containing free() (e.g., "free(second->next);")
+        
+    Returns:
+        Freed variable name (e.g., "second->next")
     """
-    Extract the argument from a free() call.
-    "free(second->next);" → "second->next"
-    "    free(ptr);  " → "ptr"
-    """
+
     start = line.index("free(") + 5
     end = line.index(")", start)
     return line[start:end].strip()
 
 
 def extract_return_value(line: str) -> str:
+    """Extract the returned value from a return statement.
+    
+    Args:
+        line: Code line with return statement (e.g., "return n;", "return (n);")
+        
+    Returns:
+        Returned variable or expression (e.g., "n", "ptr->data")
     """
-    Extract the returned value from a return statement.
-    "return n;" → "n"
-    "return (n);" → "n"  
-    "return ptr->data;" → "ptr->data"
-    """
+
     content = line.replace("return", "", 1).replace(";", "").strip()
     
     # Remove parentheses if present
@@ -72,12 +87,15 @@ def extract_return_value(line: str) -> str:
 
 
 def extract_left_side(line: str) -> str:
+    """Extract the left side of an assignment.
+    
+    Args:
+        line: Code line with assignment (e.g., "Node *second = head->next;")
+        
+    Returns:
+        Left-hand side variable name (e.g., "second", "head->next")
     """
-    Extract the left side of an assignment.
-    "head->next = NULL;" → "head->next"
-    "Node *second = head->next;" → "second"
-    "char *str = malloc(10);" → "str"
-    """
+
     left_part = line.split("=")[0].strip()
 
     # If it's a declaration (Type *var), extract just var
@@ -90,11 +108,15 @@ def extract_left_side(line: str) -> str:
 
 
 def extract_right_side(line: str) -> str:
+    """Extract the right side of an assignment.
+    
+    Args:
+        line: Code line with assignment (e.g., "Node *second = head->next;")
+        
+    Returns:
+        Right-hand side value (e.g., "head->next", "NULL")
     """
-    Extract the right side of an assignment.
-    "Node *second = head->next;" → "head->next"
-    "head->next = NULL;" → "NULL"
-    """
+
     right_part = line.split("=", 1)[1].replace(";", "").strip()
     return right_part
 
@@ -124,13 +146,16 @@ def is_null_assignment(line: str) -> bool:
 
 
 def is_alias(line: str, found_segment: str) -> bool:
+    """Check if line creates an alias to tracked memory.
+    
+    Args:
+        line: Code line to analyze
+        found_segment: Memory segment being tracked
+        
+    Returns:
+        True if line is an assignment with found_segment on right side (not NULL)
     """
-    Check if line creates an alias.
-    True if:
-    1. It's an assignment (contains "=")
-    2. The found segment is on the RIGHT side of "="
-    3. It's not NULL assignment
-    """
+
     if "=" not in line:
         return False
 
@@ -142,12 +167,16 @@ def is_alias(line: str, found_segment: str) -> bool:
 
 
 def is_reassignment(line: str, found_segment: str) -> bool:
+    """Check if line reassigns a tracked segment.
+    
+    Args:
+        line: Code line to analyze
+        found_segment: Memory segment being tracked
+        
+    Returns:
+        True if line is an assignment with found_segment on left side
     """
-    Check if line reassigns a tracked segment.
-    True if:
-    1. It's an assignment (contains "=")
-    2. The found segment is on the LEFT side of "="
-    """
+
     if "=" not in line:
         return False
 
@@ -211,10 +240,11 @@ def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple
 # =============================================================================
 
 def apply_init(line: str, tracking: dict[str, TrackingEntry]) -> None:
-    """
-    Create initial tracking structure from malloc line.
-    "n->data = malloc(...);" → root="n", target="n->data"
-    "ptr = malloc(...);" → root="ptr", target="ptr"
+    """Create initial tracking structure from malloc line.
+    
+    Args:
+        line: Code line with malloc (e.g., "ptr = malloc(10);", "n->data = malloc(...);")
+        tracking: Dictionary of tracked memory paths (modified in place)
     """
 
     left_side = extract_left_side(line)
@@ -230,11 +260,12 @@ def apply_init(line: str, tracking: dict[str, TrackingEntry]) -> None:
 
 
 def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str) -> None:
-    """
-    Substitute local root with receiver in calling function.
-
-    "return n;" with caller_line "head->next = create_node();"
-    → n becomes head->next, n->data becomes head->next->data
+    """Substitute local root with receiver in calling function.
+    
+    Args:
+        line: Return statement in callee (e.g., "return n;")
+        tracking: Dictionary of tracked memory paths (modified in place)
+        caller_line: Assignment line in caller (e.g., "head->next = create_node();")
     """
 
     returned_var = extract_return_value(line)
@@ -268,12 +299,13 @@ def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str
 
 
 def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tracking: dict[str, TrackingEntry]) -> None:
-    """
-    Add a new root that points to the same memory.
-
-    "Node *second = head->next;" with aliased_segment = "head->next"
-    and source_entry.target = "head->next->next->data"
-    → suffix = "->next->data", new_target = "second->next->data"
+    """Add a new root that points to the same memory.
+    
+    Args:
+        line: Assignment creating alias (e.g., "Node *second = head->next;")
+        aliased_segment: Memory segment being aliased (e.g., "head->next")
+        source_entry: Original tracking entry for this memory
+        tracking: Dictionary of tracked memory paths (modified in place)
     """
 
     new_name = extract_left_side(line)
@@ -291,12 +323,18 @@ def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tr
 
 
 def apply_reassignment(root_key: str, tracking: dict[str, TrackingEntry], line: str, function: str) -> Optional[RootCauseInfo]:
+    """Remove the concerned root (path is broken by reassignment).
+    
+    Args:
+        root_key: Key of the root being reassigned
+        tracking: Dictionary of tracked memory paths (modified in place)
+        line: Code line performing reassignment
+        function: Function name where reassignment occurs
+        
+    Returns:
+        RootCauseInfo if tracking becomes empty (Type 2 leak), None otherwise
     """
-    Remove the concerned root (path is broken).
-    Aliases are NOT impacted (they have their own pointer).
 
-    Returns RootCause if structure becomes empty (Type 2).
-    """
     del tracking[root_key]
 
     if len(tracking) == 0:
@@ -313,13 +351,21 @@ def apply_reassignment(root_key: str, tracking: dict[str, TrackingEntry], line: 
 
 
 def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: str, tracking: dict[str, TrackingEntry], function: str) -> Optional[RootCauseInfo]:
+    """Handle free() call and detect improper memory release.
+    
+    Args:
+        line: Code line with free() call
+        found_segment: Memory segment being freed
+        entry: Tracking entry for this memory
+        root_key: Key of the root being freed
+        tracking: Dictionary of tracked memory paths (modified in place)
+        function: Function name where free occurs
+        
+    Returns:
+        RootCauseInfo for Type 3 (freeing container before content) or Type 1 (never freed), 
+        None otherwise
     """
-    Handle free() call.
 
-    If target STARTS WITH argument + "->" → freeing container before content (Type 3)
-    Otherwise, remove this root.
-    If structure becomes empty → Type 1 (never freed)
-    """
     free_arg = extract_free_argument(line)
 
     # If target starts with free_arg + "->", we're freeing the container before its content
@@ -351,15 +397,14 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
 # INTEGRATION HELPER
 # =============================================================================
 
-def convert_extracted_code(extracted_functions: list[dict]) -> list[dict]:
-    """
-    Convert code_extractor output to memory_tracker input format.
-
-    Input format (from code_extractor):
-        {'file': '...', 'function': '...', 'line': 23, 'code': "23: line1\n24: line2\n..."}
-
-    Output format (for find_root_cause):
-        {'function': '...', 'lines': ['line1', 'line2', ...], 'start_line': 23, 'file': '...'}
+def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list[ProcessedFunction]:
+    """Convert code_extractor output to memory_tracker input format.
+    
+    Args:
+        extracted_functions: List of extracted functions with numbered code lines
+        
+    Returns:
+        List of functions with parsed code lines ready for memory tracking
     """
     result = []
 
