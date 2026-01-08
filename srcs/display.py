@@ -4,6 +4,7 @@ Display Module for Vex
 Formats and displays analysis results in the terminal.
 """
 import os
+import re
 
 def _build_header(error_number, total_errors):
     """
@@ -30,7 +31,7 @@ def _build_header(error_number, total_errors):
     total_length = len(text)
 
     # Construction des lignes avec le '+' aligné sur le '|'
-    top_line = "-" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
+    top_line = "―" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
     bottom_line = top_line  # Identique
 
     # Assemblage final avec couleurs
@@ -114,72 +115,72 @@ def _build_analysis_section(analysis):
     return output
 
 
-def _build_structure_section(analysis):
-    """
-    Construit la section Structure de Suivi (DEBUG).
-    """
-    GREEN = "\033[38;5;158m"
-    DARK_YELLOW = "\033[38;5;228m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    CYAN = "\033[38;5;117m"
-    GRAY = "\033[38;5;245m"
-    DARK_PINK = "\033[38;5;205m"
-    RESET = "\033[0m"
+# def _build_structure_section(analysis):
+#     """
+#     Construit la section Structure de Suivi (DEBUG).
+#     """
+#     GREEN = "\033[38;5;158m"
+#     DARK_YELLOW = "\033[38;5;228m"
+#     LIGHT_YELLOW = "\033[38;5;230m"
+#     CYAN = "\033[38;5;117m"
+#     GRAY = "\033[38;5;245m"
+#     DARK_PINK = "\033[38;5;205m"
+#     RESET = "\033[0m"
 
-    etape0 = analysis.get('etape0_identification', {})
-    evolution = analysis.get('structure_evolution', [])
-    root_etape = analysis.get('root_cause_detectee_etape', '')
+#     etape0 = analysis.get('etape0_identification', {})
+#     evolution = analysis.get('structure_evolution', [])
+#     root_etape = analysis.get('root_cause_detectee_etape', '')
 
-    if not etape0 and not evolution:
-        return ""
+#     if not etape0 and not evolution:
+#         return ""
 
-    output = f"{GREEN}• Structure de Suivi (DEBUG){RESET}\n\n"
+#     output = f"{GREEN}• Structure de Suivi (DEBUG){RESET}\n\n"
 
-    # Étape 0 : Identification
-    if etape0:
-        output += f"{DARK_YELLOW}Étape 0 — Identification :{RESET}\n"
-        output += f"  {LIGHT_YELLOW}Ligne {etape0.get('ligne_malloc_numero', '?')}:{RESET} {etape0.get('ligne_malloc_code', '?')}\n"
-        output += f"  {LIGHT_YELLOW}Variable malloc:{RESET} {etape0.get('variable_malloc', '?')}\n\n"
+#     # Étape 0 : Identification
+#     if etape0:
+#         output += f"{DARK_YELLOW}Étape 0 — Identification :{RESET}\n"
+#         output += f"  {LIGHT_YELLOW}Ligne {etape0.get('ligne_malloc_numero', '?')}:{RESET} {etape0.get('ligne_malloc_code', '?')}\n"
+#         output += f"  {LIGHT_YELLOW}Variable malloc:{RESET} {etape0.get('variable_malloc', '?')}\n\n"
 
-    # Évolution
-    if evolution:
-        output += f"{DARK_YELLOW}Évolution de la structure :{RESET}\n\n"
+#     # Évolution
+#     if evolution:
+#         output += f"{DARK_YELLOW}Évolution de la structure :{RESET}\n\n"
 
-        for step in evolution:
-            etape_num = step.get('etape', '?')
-            fonction = step.get('fonction', '?')
-            ligne_num = step.get('ligne_numero', '?')
-            ligne_code = step.get('ligne_code', '?')
-            action = step.get('action', '?')
-            explication = step.get('explication', '')
-            structure = step.get('structure_apres', {})
+#         for step in evolution:
+#             etape_num = step.get('etape', '?')
+#             fonction = step.get('fonction', '?')
+#             ligne_num = step.get('ligne_numero', '?')
+#             ligne_code = step.get('ligne_code', '?')
+#             action = step.get('action', '?')
+#             explication = step.get('explication', '')
+#             structure = step.get('structure_apres', {})
 
-            # Marquer la root cause
-            is_root = str(etape_num) == str(root_etape)
-            prefix = f"{DARK_PINK}→ " if is_root else "  "
+#             # Marquer la root cause
+#             is_root = str(etape_num) == str(root_etape)
+#             prefix = f"{DARK_PINK}→ " if is_root else "  "
 
-            output += f"{prefix}{CYAN}Étape {etape_num}{RESET} [{action}] — {fonction}\n"
-            output += f"  {GRAY}Ligne {ligne_num}: {ligne_code}{RESET}\n"
-            if explication:
-                output += f"  {LIGHT_YELLOW}→ {explication}{RESET}\n"
-            output += f"  {LIGHT_YELLOW}Structure:{RESET}\n"
+#             output += f"{prefix}{CYAN}Étape {etape_num}{RESET} [{action}] — {fonction}\n"
+#             output += f"  {GRAY}Ligne {ligne_num}: {ligne_code}{RESET}\n"
+#             if explication:
+#                 output += f"  {LIGHT_YELLOW}→ {explication}{RESET}\n"
+#             output += f"  {LIGHT_YELLOW}Structure:{RESET}\n"
 
-            if not structure:
-                output += f"    {GRAY}(vide){RESET}\n"
-            else:
-                for racine, data in structure.items():
-                    cible = data.get('cible', '?')
-                    segments = data.get('segments', [])
-                    origine = data.get('origine')
+#             if not structure:
+#                 output += f"    {GRAY}(vide){RESET}\n"
+#             else:
+#                 for racine, data in structure.items():
+#                     cible = data.get('cible', '?')
+#                     segments = data.get('segments', [])
+#                     origine = data.get('origine')
 
-                    output += f"    {CYAN}{racine}{RESET}: cible={cible}\n"
-                    output += f"      segments={segments}\n"
-                    if origine:
-                        output += f"      origine={origine}\n"
+#                     output += f"    {CYAN}{racine}{RESET}: cible={cible}\n"
+#                     output += f"      segments={segments}\n"
+#                     if origine:
+#                         output += f"      origine={origine}\n"
 
-            output += "\n"
+#             output += "\n"
 
-    return output
+#     return output
 
 
 def _build_raisonnement_section(analysis):
@@ -362,6 +363,50 @@ def _build_code_section(error, analysis):
     if not cause:
         return ""
 
+    # CAS SPÉCIAL : accolade fermante (Type 2 en fin de fonction)
+    if cause.get('root_cause_code', '').strip() == '}':
+        target_function = cause.get('function')
+        extracted_code = error.get('extracted_code', [])
+        
+        for frame in extracted_code:
+            if frame.get('function') == target_function:
+                # Prendre la dernière ligne
+                code_lines = frame.get('code', '').strip().split('\n')
+                if code_lines:
+                    last_line = code_lines[-1]  # "127: }"
+                    # Extraire le numéro : "127: }" → 127
+                    match = re.match(r'(\d+):', last_line)
+                    if match:
+                        line_num = int(match.group(1))
+                        
+                        # Créer cleaned directement
+                        cleaned = {
+                            'root_line': line_num,
+                            'root_code': '}',
+                            'root_comment': cause.get('root_cause_comment', ''),
+                            'contributing': [],
+                            'context_before': None,
+                            'context_after': None
+                        }
+                        
+                        # Sauter _clean_and_sort_code_lines() et aller à l'affichage
+                        # (code continue en bas ↓)
+                        break
+        
+        if not cleaned:  # Si pas trouvé, erreur
+            output = f"{GREEN}• Root Cause{RESET}\n\n"
+            output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
+            return output
+    else:
+        # CAS NORMAL : appeler _clean_and_sort_code_lines()
+        source_file = cause.get('file', error.get('file', 'unknown'))
+        cleaned = _clean_and_sort_code_lines(source_file, cause)
+        
+        if not cleaned:
+            output = f"{GREEN}• Root Cause{RESET}\n\n"
+            output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
+            return output
+
     type_leak = analysis.get('type_leak', 0)
 
     # Titre
@@ -369,13 +414,6 @@ def _build_code_section(error, analysis):
 
     # Récupérer le fichier source
     source_file = cause.get('file', error.get('file', 'unknown'))
-
-    # Nettoyer et trier les lignes
-    cleaned = _clean_and_sort_code_lines(source_file, cause)
-
-    if not cleaned:
-        output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
-        return output
 
     # Fichier et fonction
     display_function = cause.get('function', error.get('function', 'unknown'))

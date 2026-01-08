@@ -36,7 +36,6 @@ def analyze_with_mistral(error_data):
         # Appel à l'API Mistral via mistral_api.py
         analysis = analyze_memory_leak(error_data, code_context, root_cause)
 
-        # print("DEBUG\n", analysis)
         return analysis
 
     except Exception as e:

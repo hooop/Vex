@@ -186,12 +186,19 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
 
     for i, error in enumerate(parsed_errors, 1):
         try:
+
+            # Masquer le curseur avant le spinner
+            print("\033[?25l", end="", flush=True)
+
+            # Démarrer le spinner pour ce leak
+            t = start_block_spinner("Calling Mistral AI")
+            time.sleep(0.1)  # ← AJOUTER cette ligne (laisse le thread démarrer)
+            
             # Analyse de l'erreur
             analysis = analyze_with_mistral(error)
-
-            # Arrêter le spinner avant le premier affichage
-            if i == 1:
-                stop_block_spinner(t, "Calling Mistral AI")
+            
+            # Arrêter le spinner après l'analyse
+            stop_block_spinner(t, "Calling Mistral AI")
 
             # Affichage
                 # Réafficher le vrai curseur

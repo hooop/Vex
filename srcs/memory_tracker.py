@@ -86,9 +86,15 @@ def extract_return_value(line: str) -> str:
     """
     Extract the returned value from a return statement.
     "return n;" → "n"
+    "return (n);" → "n"  
     "return ptr->data;" → "ptr->data"
     """
     content = line.replace("return", "", 1).replace(";", "").strip()
+    
+    # Remove parentheses if present
+    if content.startswith("(") and content.endswith(")"):
+        content = content[1:-1].strip()
+    
     return content
 
 
@@ -430,15 +436,22 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
     # STEP 2: LINE BY LINE TRAVERSAL
     # =========================================================================
 
-    # =========================================================================
-    # STEP 2: LINE BY LINE TRAVERSAL
-    # =========================================================================
-
     while True:
 
         # Check if we finished current function
         if line_index >= len(current_func['lines']):
 
+             # NOUVEAU : Si tracking non-vide, les variables locales sont perdues
+            if tracking:
+                steps.append(f"END: {current_func['function']}() exits with unreleased memory")
+                return RootCause(
+                    leak_type=2,
+                    line="}",
+                    function=current_func['function'],
+                    file=current_file,
+                    steps=steps
+                )
+    
             # Move to next function if available
             current_func_index += 1
 
@@ -512,6 +525,7 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
             steps.append(f"ALIAS: {new_name} = {found_segment} in {func_name}()")
 
             apply_alias(line, found_segment, entry, tracking)
+
             line_index += 1
             continue
 
@@ -532,84 +546,3 @@ def find_root_cause(extracted_functions: List[Dict]) -> Optional[RootCause]:
         line_index += 1
 
     return None
-
-
-# =============================================================================
-# TEST
-# =============================================================================
-
-def main():
-    """Test with simulated data matching code_extractor output."""
-
-    # Simulated output from code_extractor (format réel)
-    extracted_from_code_extractor = [
-        {
-            'file': 'leaky.c',
-            'function': 'create_node',
-            'line': 23,
-            'code': """23:     n->data = malloc(strlen(str) + 1);
-24:     strcpy(n->data, str);
-25:     n->next = NULL;
-26:     return n;
-27: }"""
-        },
-        {
-            'file': 'leaky.c',
-            'function': 'process_nodes',
-            'line': 36,
-            'code': """36:     head->next->next = create_node("third");
-37:
-38:     head->next->next->next = create_node("fourth");
-39:
-40:     Node *third = head->next->next;
-41:
-42:     Node *second = head->next;
-43:     head->next = NULL;
-44:     free(second->data);
-45:
-46:     free(second->next->next->data);
-47:     free(second->next->next);
-48:     free(second->next);
-49:     free(second);
-50:
-51:     free(head->data);
-52:     free(head);
-53: }"""
-        },
-        {
-            'file': 'leaky.c',
-            'function': 'main',
-            'line': 142,
-            'code': """142:     process_nodes();
-143:
-144:     return (0);
-145: }"""
-        }
-    ]
-
-    # Convert to our format
-    converted = convert_extracted_code(extracted_from_code_extractor)
-
-    print("=== CONVERTED DATA ===")
-    for func in converted:
-        print(f"\nFunction: {func['function']}")
-        print(f"Start line: {func['start_line']}")
-        print(f"Lines ({len(func['lines'])}):")
-        for i, line in enumerate(func['lines']):
-            print(f"  [{i}]: {repr(line)}")
-
-    print("\n=== RUNNING ALGORITHM ===\n")
-
-    result = find_root_cause(converted)
-
-    if result:
-        print(f"ROOT CAUSE FOUND:")
-        print(f"  Type: {result.leak_type}")
-        print(f"  Function: {result.function}")
-        print(f"  Line: {result.line}")
-    else:
-        print("No root cause found (unexpected)")
-
-
-if __name__ == "__main__":
-    main()

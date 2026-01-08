@@ -76,10 +76,6 @@ def analyze_memory_leak(error_data, code_context, root_cause=None):
             analysis["cause_reelle"]["function"] = root_cause["function"]
             analysis["cause_reelle"]["root_cause_code"] = root_cause["line"].strip()
 
-        # DEBUG
-        # print("\n[DEBUG] cause_reelle:", analysis.get('cause_reelle', {}))
-        # print("[DEBUG] root_cause_code:", analysis.get('cause_reelle', {}).get('root_cause_code', 'MISSING'))
-
         return analysis
 
     except json.JSONDecodeError as e:
