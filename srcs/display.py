@@ -87,7 +87,7 @@ def _build_valgrind_section(error: ValgrindError) -> str:
 
 def _build_analysis_section(analysis: MistralAnalysis) -> str:
     """
-    Builds the Vex analysis section with leak type and diagnostic.
+    Builds the Vex analysis section with leak type and diagnosis.
 
     Args:
         analysis: Dictionary returned by Mistral
@@ -100,7 +100,7 @@ def _build_analysis_section(analysis: MistralAnalysis) -> str:
     LIGHT_YELLOW = "\033[38;5;230m"
     RESET = "\033[0m"
 
-    type_leak_labels = {
+    leak_type_labels = {
         1: "Memory was never freed",
         2: "Pointer was lost before freeing memory",
         3: "No pointer can access this memory anymore"
@@ -110,17 +110,17 @@ def _build_analysis_section(analysis: MistralAnalysis) -> str:
     output = f"{GREEN}• Diagnosis{RESET}\n\n"
 
     # Leak type
-    type_leak = analysis.get('type_leak', 0)
-    if type_leak in type_leak_labels:
-        output += f"{DARK_YELLOW} ➤ {type_leak_labels[type_leak]}{RESET}\n\n"
+    leak_type = analysis.get('leak_type', 0)
+    if leak_type in leak_type_labels:
+        output += f"{DARK_YELLOW} ➤ {leak_type_labels[leak_type]}{RESET}\n\n"
 
-    # Diagnostic
-    diagnostic = analysis.get('diagnostic', 'No diagnostic available')
-    output += f"{LIGHT_YELLOW}{diagnostic}{RESET}\n\n"
+    # diagnosis
+    diagnosis = analysis.get('diagnosis', 'No diagnosis available')
+    output += f"{LIGHT_YELLOW}{diagnosis}{RESET}\n\n"
 
     return output
 
-def _build_raisonnement_section(analysis: MistralAnalysis) -> str:
+def _build_reasoning_section(analysis: MistralAnalysis) -> str:
     """
     Builds the reasoning section.
 
@@ -136,16 +136,16 @@ def _build_raisonnement_section(analysis: MistralAnalysis) -> str:
     LIGHT_YELLOW = "\033[38;5;230m"
     RESET = "\033[0m"
 
-    raisonnement = analysis.get('raisonnement', [])
+    reasoning = analysis.get('reasoning', [])
 
-    if not raisonnement:
+    if not reasoning:
         return ""
 
     # Title
     output = f"{GREEN}• Memory Trace{RESET}\n\n"
 
     # Each step
-    for i, etape in enumerate(raisonnement, 1):
+    for i, etape in enumerate(reasoning, 1):
         output += f"{DARK_YELLOW} {i}{DARK_YELLOW} ➤ {LIGHT_YELLOW}{etape}{RESET}\n"
 
     output += "\n"
@@ -196,7 +196,7 @@ def _clean_and_sort_code_lines(source_file: str, cause: RealCause) -> Optional[C
 
     Args:
         source_file: Source file path
-        cause: cause_reelle dict from Mistral
+        cause: real_cause dict from Mistral
 
     Returns:
         Cleaned lines with line numbers, or None if not found
@@ -301,7 +301,7 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
     GRAY = "\033[38;5;236m"
     RESET = "\033[0m"
 
-    cause = analysis.get('cause_reelle')
+    cause = analysis.get('real_cause')
     if not cause:
         return ""
 
@@ -350,7 +350,7 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
             output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
             return output
 
-    type_leak = analysis.get('type_leak', 0)
+    leak_type = analysis.get('leak_type', 0)
 
     # Title
     output = f"{GREEN}• Root Cause{RESET}\n\n"
@@ -420,7 +420,7 @@ def _build_solution_section(analysis: MistralAnalysis) -> str:
 
     output = f"{GREEN}• Proposed Solution{RESET}\n\n"
 
-    resolution = analysis.get('resolution_principe', 'No resolution proposed')
+    resolution = analysis.get('resolution_principle', 'No resolution proposed')
     output += f"{LIGHT_YELLOW}{resolution}{RESET}\n\n"
 
     # Resolution code
@@ -430,7 +430,7 @@ def _build_solution_section(analysis: MistralAnalysis) -> str:
     return output
 
 
-def _build_explications_section(analysis: MistralAnalysis) -> str:
+def _build_explanations_section(analysis: MistralAnalysis) -> str:
     """
     Builds the explanations section.
 
@@ -448,8 +448,8 @@ def _build_explications_section(analysis: MistralAnalysis) -> str:
     output = f"{GREEN}• Explanation{RESET}\n\n"
 
     # Explanation content
-    explications = analysis.get('explications', 'No explanation available')
-    output += f"{LIGHT_YELLOW}{explications}{RESET}\n\n"
+    explanations = analysis.get('explanations', 'No explanation available')
+    output += f"{LIGHT_YELLOW}{explanations}{RESET}\n\n"
 
     return output
 
@@ -477,13 +477,13 @@ def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_numb
 
     print(_build_analysis_section(analysis))
 
-    print(_build_raisonnement_section(analysis))
+    print(_build_reasoning_section(analysis))
 
     print(_build_code_section(error, analysis))
 
     print(_build_solution_section(analysis))
 
-    print(_build_explications_section(analysis))
+    print(_build_explanations_section(analysis))
 
 def display_leak_menu() -> str:
     """

@@ -96,13 +96,13 @@ class ValgrindError(TypedDict):
 
 class MistralAnalysis(TypedDict, total=False):
     """Structured analysis result from Mistral AI."""
-    type_leak: int
-    diagnostic: str
-    raisonnement: list[str]
-    resolution_principe: str
+    leak_type: int
+    diagnosis: str
+    reasoning: list[str]
+    resolution_principle: str
     resolution_code: str
-    explications: str
-    cause_reelle: RealCause
+    explanations: str
+    real_cause: RealCause
     error: str  # Optional field for error cases
 
 

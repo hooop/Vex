@@ -6,26 +6,38 @@ Sends memory leak analysis requests to Mistral AI and returns pedagogical explan
 
 import os
 import json
+from typing import Optional
+
 from dotenv import load_dotenv
 from mistralai import Mistral
 
+from type_defs import ValgrindError, RootCauseInfo, MistralAnalysis
 
-# Charge les variables d'environnement
+# Load environment variables
 load_dotenv()
 
-# Initialise le client Mistral
+# Initialize Mistral client
 API_KEY = os.environ.get("MISTRAL_API_KEY")
 if not API_KEY:
     raise ValueError(
-        "MISTRAL_API_KEY n'est pas définie.\n"
-        "Créez un fichier .env avec : MISTRAL_API_KEY=votre_clé"
+    "MISTRAL_API_KEY is not set.\n"
+    "Create a .env file with: MISTRAL_API_KEY=your_key"
     )
 
 client = Mistral(api_key=API_KEY)
 
 
-def _clean_json_response(response):
-    """Nettoie la réponse pour extraire le JSON pur."""
+def _clean_json_response(response: str) -> str:
+    """
+    Clean API response to extract pure JSON.
+    
+    Args:
+        response: Raw response string from Mistral API.
+        
+    Returns:
+        Cleaned JSON string ready for parsing.
+    """
+    
     response = response.strip()
 
     if "```" in response:
@@ -37,18 +49,23 @@ def _clean_json_response(response):
     return response.strip()
 
 
-def analyze_memory_leak(error_data, code_context, root_cause=None):
+def analyze_memory_leak(
+    error_data: ValgrindError,
+    code_context: str,
+    root_cause: Optional[RootCauseInfo] = None
+) -> MistralAnalysis:
     """
-    Analyse un memory leak avec Mistral AI.
+    Analyze a memory leak using Mistral AI.
 
     Args:
-        error_data: Dict avec infos Valgrind
-        code_context: Code source formaté
-        root_cause: Dict avec 'type', 'line', 'function', 'file', 'steps' (from memory_tracker)
+        error_data: Valgrind error information.
+        code_context: Formatted source code string.
+        root_cause: Root cause identified by memory_tracker (optional).
 
     Returns:
-        dict: Analyse structurée ou dict avec 'error' en cas de problème
+        Structured analysis or dict with 'error' field on failure.
     """
+
     try:
         prompt = _build_prompt(error_data, code_context, root_cause)
         response = _call_mistral_api(prompt)
@@ -60,34 +77,43 @@ def analyze_memory_leak(error_data, code_context, root_cause=None):
         analysis = json.loads(cleaned)
 
         # Validation basique
-        required_keys = ["type_leak", "diagnostic", "raisonnement",
-                        "resolution_principe", "resolution_code", "explications"]
+        required_keys = ["leak_type", "diagnosis", "reasoning",
+                        "resolution_principle", "resolution_code", "explanations"]
 
         for key in required_keys:
             if key not in analysis:
-                raise ValueError(f"Clé manquante : {key}")
+                raise ValueError(f"Missing key: {key}")
 
         # Injecter les données de root_cause dans la réponse
         if root_cause:
-            analysis["type_leak"] = root_cause["type"]
-            if "cause_reelle" not in analysis:
-                analysis["cause_reelle"] = {}
-            analysis["cause_reelle"]["file"] = root_cause.get("file", "unknown")
-            analysis["cause_reelle"]["function"] = root_cause["function"]
-            analysis["cause_reelle"]["root_cause_code"] = root_cause["line"].strip()
+            analysis["leak_type"] = root_cause["type"]
+            if "real_cause" not in analysis:
+                analysis["real_cause"] = {}
+            analysis["real_cause"]["file"] = root_cause.get("file", "unknown")
+            analysis["real_cause"]["function"] = root_cause["function"]
+            analysis["real_cause"]["root_cause_code"] = root_cause["line"].strip()
 
         return analysis
 
     except json.JSONDecodeError as e:
-        return {"error": f"JSON invalide : {str(e)}", "raw": response if 'response' in locals() else 'N/A'}
+        return {"error": f"Invalid JSON: {str(e)}", "raw": response if 'response' in locals() else 'N/A'}
     except Exception as e:
         return {"error": str(e)}
 
 
-def _format_steps(steps):
-    """Formate les steps pour le prompt."""
+def _format_steps(steps: Optional[list[str]]) -> str:
+    """
+    Format memory tracking steps for prompt.
+
+    Args:
+        steps: List of tracking steps (optional).
+
+    Returns:
+        Formatted string with numbered steps.
+    """
+
     if not steps:
-        return "Aucune étape disponible"
+        return "No steps available"
 
     formatted = ""
     for i, step in enumerate(steps, 1):
@@ -95,30 +121,44 @@ def _format_steps(steps):
     return formatted
 
 
-def _build_prompt(error_data, code_context, root_cause=None):
-    """Construit le prompt pour Mistral."""
+def _build_prompt(
+    error_data: ValgrindError,
+    code_context: str,
+    root_cause: Optional[RootCauseInfo] = None
+) -> str:
+    """
+    Build the prompt for Mistral API.
+
+    Args:
+        error_data: Valgrind error information.
+        code_context: Formatted source code string.
+        root_cause: Root cause identified by memory_tracker (optional).
+
+    Returns:
+        Complete prompt string for Mistral AI.
+    """
 
     # Type de leak en texte
     type_labels = {
-        1: "Type 1 : La mémoire n'a jamais été libérée",
-        2: "Type 2 : Le pointeur a été perdu avant de libérer la mémoire",
-        3: "Type 3 : Le conteneur a été libéré avant son contenu"
+    1: "Type 1: Memory was never freed",
+    2: "Type 2: Pointer was lost before freeing memory",
+    3: "Type 3: Container was freed before its content"
     }
 
     # Infos root cause
     if root_cause:
         root_cause_section = f"""
 ====================================================
-ROOT CAUSE (identifiée par analyse statique)
+ROOT CAUSE (identified by static analysis)
 ====================================================
 
-{type_labels.get(root_cause['type'], 'Type inconnu')}
+{type_labels.get(root_cause['type'], 'Unknown type')}
 
-Fichier   : {root_cause.get('file', 'unknown')}
-Fonction  : {root_cause['function']}()
-Ligne     : {root_cause['line'].strip()}
+File      : {root_cause.get('file', 'unknown')}
+Function  : {root_cause['function']}()
+Line      : {root_cause['line'].strip()}
 
-Chemin de la mémoire :
+Memory path:
 {_format_steps(root_cause.get('steps', []))}
 """
     else:
@@ -127,82 +167,94 @@ Chemin de la mémoire :
 ROOT CAUSE
 ====================================================
 
-Non identifiée (analyse manuelle requise)
+Not identified (manual analysis required)
 """
 
-    prompt = f"""Tu es un expert en C et en gestion mémoire. Tu dois expliquer un memory leak de façon pédagogique.
+    prompt = f"""You are a C and memory management expert. You must explain a memory leak in a pedagogical way.
 
 ====================================================
-RAPPORT VALGRIND
+VALGRIND REPORT
 ====================================================
 
 {error_data.get('bytes', '?')} bytes in {error_data.get('blocks', '?')} blocks are {error_data.get('type', 'definitely lost')}
-Fonction d'allocation : {error_data.get('function', 'unknown')}()
-Fichier : {error_data.get('file', 'unknown')}
-Ligne : {error_data.get('line', '?')}
+Allocation function: {error_data.get('function', 'unknown')}()
+File: {error_data.get('file', 'unknown')}
+Line: {error_data.get('line', '?')}
 
 ====================================================
-CODE SOURCE
+SOURCE CODE
 ====================================================
 
 {code_context}
 {root_cause_section}
-====================================================
-TA MISSION
-====================================================
-
-1. Explique le diagnostic en 2-3 phrases claires
-2. Fournis un raisonnement pédagogique étape par étape (basé sur le chemin mémoire ci-dessus)
-3. Identifie les lignes de code importantes (contributing_codes)
-4. Propose une solution avec le code correctif
 
 ====================================================
-FORMAT JSON (uniquement, aucun texte autour)
+YOUR MISSION
+====================================================
+
+1. Explain the diagnosis in 2-3 clear sentences
+2. Provide step-by-step pedagogical reasoning (based on the memory path above)
+3. Identify important code lines (contributing_codes)
+4. Propose a solution with corrective code
+
+====================================================
+JSON FORMAT (only, no text around)
 ====================================================
 
 {{
-  "type_leak": {root_cause['type'] if root_cause else 1},
-  "diagnostic": "<explication claire du problème en 2-3 phrases>",
-  "raisonnement": [
-    "<étape : explication pédagogique>",
-    "<étape : que devient la mémoire>",
-    "<étape : pourquoi c'est un problème>",
-    "<ajoute autant d'étapes que nécessaire>"
+  "leak_type": {root_cause['type'] if root_cause else 1},
+  "diagnosis": "<clear explanation of the problem in 2-3 sentences>",
+  "reasoning": [
+    "<step: pedagogical explanation>",
+    "<step: what happens to the memory>",
+    "<step: why this is a problem>",
+    "<add as many steps as necessary>"
   ],
-  "cause_reelle": {{
+  "real_cause": {{
     "file": "{root_cause.get('file', 'unknown') if root_cause else 'unknown'}",
     "function": "{root_cause['function'] if root_cause else 'unknown'}",
-    "owner": "<variable qui aurait dû libérer la mémoire>",
+    "owner": "<variable that should have freed the memory>",
     "root_cause_code": "{root_cause['line'].strip() if root_cause else ''}",
-    "root_cause_comment": "<pourquoi cette ligne cause le leak>",
+    "root_cause_comment": "<why this line causes the leak>",
     "contributing_codes": [
-      {{"code": "<ligne importante>", "comment": "<son rôle dans le leak>"}},
-      {{"code": "<autre ligne>", "comment": "<son rôle>"}}
+      {{"code": "<important line>", "comment": "<its role in the leak>"}},
+      {{"code": "<other line>", "comment": "<its role>"}}
     ],
-    "context_before_code": "<ligne juste avant la root cause ou vide>",
-    "context_after_code": "<ligne juste après la root cause ou vide>"
+    "context_before_code": "<line just before root cause or empty>",
+    "context_after_code": "<line just after root cause or empty>"
   }},
-  "resolution_principe": "Dans <fonction>(), <action à faire> avant/après <ligne existante du code>",
-  "resolution_code": "<code C exact à insérer>",
-  "explications": "<explication pédagogique de pourquoi cette solution fonctionne> + <règle de bonne pratique>"
+  "resolution_principle": "In <function>(), <action to do> before/after <existing code line>",
+  "resolution_code": "<exact C code to insert>",
+  "explanations": "<pedagogical explanation of why this solution works> + <best practice rule>"
 }}
 
-RÈGLES IMPORTANTES :
-- Utilise un français simple et pédagogique
-- Le raisonnement doit guider l'utilisateur pas à pas
-- Dans "raisonnement" : pas de numérotation, maximum 15 mots par étape
-- Ne copie pas les steps bruts, reformule-les de façon compréhensible
-- contributing_codes : uniquement les lignes AVANT root_cause_code
-- root_cause_comment : maximum 10 mots
-- resolution_principe : mentionner la fonction, l'action, et la ligne de référence
-- JSON uniquement, aucun texte autour
+IMPORTANT RULES:
+- Use simple and pedagogical language
+- Reasoning must guide the user step by step
+- In "reasoning": no numbering, maximum 15 words per step
+- Don't copy raw steps, rephrase them in an understandable way
+- contributing_codes: only lines BEFORE root_cause_code
+- root_cause_comment: maximum 10 words
+- resolution_principle: mention function, action, and reference line
+- JSON only, no text around
 """
 
     return prompt
 
 
-def _call_mistral_api(prompt):
-    """Effectue l'appel à l'API Mistral."""
+def _call_mistral_api(prompt: str) -> str:
+    """
+    Execute Mistral API call.
+
+    Args:
+        prompt: Complete prompt string.
+
+    Returns:
+        Raw response content from Mistral API.
+
+    Raises:
+        Exception: If API call fails.
+    """
     try:
         response = client.chat.complete(
             model="mistral-small-latest",
@@ -216,14 +268,4 @@ def _call_mistral_api(prompt):
         return response.choices[0].message.content
 
     except Exception as e:
-        raise Exception(f"Erreur lors de l'appel API Mistral : {str(e)}")
-
-
-def main():
-    """Fonction de test standalone."""
-    print("Test du module Mistral API...")
-    print("Utilisez vex.py pour tester l'intégration complète.")
-
-
-if __name__ == "__main__":
-    main()
+        raise Exception(f"Mistral API call failed: {str(e)}")
