@@ -16,6 +16,7 @@ from typing import Optional
 
 from builder import rebuild_project
 from code_extractor import extract_call_stack
+from colors import RESET, DARK_GREEN, RED
 from display import display_analysis, display_leak_menu
 from memory_tracker import find_root_cause, convert_extracted_code
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
@@ -35,11 +36,6 @@ from welcome import (
 # Return codes
 SUCCESS = 0
 ERROR = 1
-
-RESET = "\033[0m"
-GREEN = "\033[38;5;158m"
-DARK_GREEN = "\033[38;5;49m"
-RED = "\033[38;5;174m"
 
 def print_error(message: str) -> None:
     """
@@ -97,9 +93,6 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
 
     clear_screen()
     display_logo()
-
-    RED = "\033[38;5;174m"
-    RESET = "\033[0m"
 
     # Re-run Valgrind
     t = start_spinner("Running Valgrind")

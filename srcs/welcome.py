@@ -11,17 +11,11 @@ import sys
 import threading
 import time
 
+from colors import (
+    RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW,
+    LIGHT_PINK
+)
 from type_defs import ParsedValgrindReport
-
-# ANSI Color codes
-RESET = "\033[0m"
-GREEN = "\033[38;5;158m"
-DARK_GREEN = "\033[38;5;49m"
-LIGHT_YELLOW = "\033[38;5;230m"
-DARK_YELLOW = "\033[38;5;228m"
-LIGHT_PINK = "\033[38;5;225m"
-MAGENTA = "\033[38;5;219m"
-RED = "\033[38;5;174m"
 
 # Global flags for spinner control
 _spinner_active = False
@@ -80,10 +74,7 @@ def _spinner_animation(message: str) -> None:
     """Thread function that displays the animated spinner."""
 
     spinner = ['◐', '◓', '◑', '◒']
-    colors = [
-        "\033[38;5;225m",  # Yellow
-        "\033[38;5;49m"
-    ]
+    colors = [LIGHT_PINK, DARK_GREEN]
     i = 0
     while _spinner_active:
         color = colors[i % len(colors)]
@@ -137,10 +128,7 @@ def _block_spinner_animation(message: str) -> None:
         message: The message to animate.
     """
 
-    colors = [
-        "\033[38;5;225m",  # Pink
-        "\033[38;5;49m"    # Green
-    ]
+    colors = [LIGHT_PINK, DARK_GREEN]
 
     length = len(message)
 
