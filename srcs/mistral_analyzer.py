@@ -1,50 +1,60 @@
 """
-Mistral Analyzer - Wrapper pour l'analyse avec Mistral AI
+Mistral AI analyzer wrapper for Vex integration.
 
-Adapte mistral_api.py pour l'intégration avec vex.py
+Adapts mistral_api.py for integration with vex.py main workflow.
 """
 
 from mistral_api import analyze_memory_leak
+from type_defs import ValgrindError, ExtractedFunction, MistralAnalysis
 
 
 class MistralAPIError(Exception):
-    """Exception levée en cas d'erreur avec l'API Mistral."""
+    """Raised when Mistral API call fails."""
+
     pass
 
 
-def analyze_with_mistral(error_data):
+def analyze_with_mistral(error_data: ValgrindError) -> MistralAnalysis:
     """
-    Analyse une erreur mémoire avec Mistral AI.
+    Analyze a memory error with Mistral AI.
 
     Args:
-        error_data: Dict avec 'type', 'bytes', 'file', 'line', 'function',
-                   'backtrace', 'extracted_code', et 'root_cause'
+        error_data: Valgrind error with backtrace, code context and root cause.
 
     Returns:
-        dict: Analyse de Mistral
+        Structured analysis from Mistral AI.
 
     Raises:
-        MistralAPIError: En cas d'erreur API
+        MistralAPIError: If API call fails.
     """
     try:
-        # Formater le code extrait
+        # Format extracted code
         code_context = _format_extracted_code(error_data.get('extracted_code', []))
 
-        # Récupérer la root cause (calculée par memory_tracker)
+        # Get root cause (computed by memory_tracker)
         root_cause = error_data.get('root_cause', None)
 
-        # Appel à l'API Mistral via mistral_api.py
+        # Call Mistral API via mistral_api.py
         analysis = analyze_memory_leak(error_data, code_context, root_cause)
 
         return analysis
 
     except Exception as e:
-        raise MistralAPIError(f"Erreur lors de l'analyse : {str(e)}")
+        raise MistralAPIError(f"Analysis failed: {str(e)}")
 
 
-def _format_extracted_code(extracted_code):
+def _format_extracted_code(extracted_code: list[ExtractedFunction]) -> str:
+    """Format extracted code from call stack for Mistral prompt.
+
+    Args:
+        extracted_code: List of functions extracted from stack frames.
+
+    Returns:
+        Formatted string with numbered functions and their source code.
+    """
+    
     if not extracted_code:
-        return "=== Aucun code source disponible ===\n"
+        return "=== No source code available ===\n"
 
     formatted = "=== CALL STACK WITH SOURCE CODE ===\n\n"
 
@@ -53,10 +63,10 @@ def _format_extracted_code(extracted_code):
         last_line_num = code_lines[-1].split(':')[0] if code_lines else '?'
 
         formatted += f"{'='*50}\n"
-        formatted += f"FONCTION {i}: {frame['function']}\n"
-        formatted += f"Fichier: {frame['file']}\n"
-        formatted += f"Commence à la ligne: {frame['line']}\n"
-        formatted += f"Fin fonction: ligne {last_line_num}\n"
+        formatted += f"FUNCTION {i}: {frame['function']}\n"
+        formatted += f"File: {frame['file']}\n"
+        formatted += f"Starts at line: {frame['line']}\n"
+        formatted += f"Function ends: line {last_line_num}\n"
         formatted += f"{'='*50}\n"
         formatted += frame['code']
         formatted += "\n\n"
