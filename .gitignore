@@ -12,3 +12,9 @@ examples/core
 logo.txt
 *.o
 iteration_prompt.md
+
+# Binaires compilés
+test_cases/leaky
+test_cases/*/leaky
+*.out
+*.exe
