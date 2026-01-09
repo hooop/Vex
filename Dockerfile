@@ -1,34 +1,23 @@
 FROM --platform=linux/amd64 ubuntu:22.04
 
-# Éviter les questions interactives pendant l'installation
+# Avoid interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Installer Valgrind, gcc, Python et les outils nécessaires
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     valgrind \
     gcc \
+    make \
     python3 \
     python3-pip \
-    vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Répertoire de travail
+# Set working directory
 WORKDIR /app
 
-# Copier les requirements et installer les dépendances Python
+# Copy and install Python dependencies (cacheable layer)
 COPY requirements.txt .
-RUN pip3 install -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copier tous les fichiers du projet
-COPY . .
-
-# Créer un fichier .env template si il n'existe pas
-RUN if [ ! -f .env ]; then \
-    echo "MISTRAL_API_KEY=your_api_key_here" > .env; \
-    fi
-
-# Compiler le programme de test
-# RUN gcc -g -o leaky leaky.c
-
-# Par défaut, ouvrir un shell bash
+# Default command: open bash shell
 CMD ["/bin/bash"]
