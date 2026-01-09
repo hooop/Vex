@@ -1,35 +1,25 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
-valgrind_parser.py
+Valgrind report parser module.
 
-Module responsable du parsing des rapports Valgrind pour en extraire
-les informations structurées sur les fuites mémoire.
-
-Fonctionnalités :
-- Détection de la présence de leaks
-- Extraction du résumé global (LEAK SUMMARY)
-- Extraction détaillée de chaque leak individuel (bytes, fichier, ligne)
-- Gestion du cas "no leaks"
+Extracts structured memory leak information from Valgrind output reports.
+Detects leaks, parses summary statistics, and extracts detailed leak entries.
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Optional
+
+from type_defs import ParsedValgrindReport, ValgrindSummary, ValgrindError, StackFrame
 
 
-def parse_valgrind_report(report: str) -> Dict:
+def parse_valgrind_report(report: str) -> ParsedValgrindReport:
     """
-    Parse un rapport Valgrind et extrait les informations sur les fuites mémoire.
+    Parse a Valgrind report and extract memory leak information.
 
     Args:
-        report: Le texte complet du rapport Valgrind (retourné par valgrind_runner)
+        report: Complete text of the Valgrind report.
 
     Returns:
-        dict: Dictionnaire structuré contenant :
-            - has_leaks (bool): True si des leaks sont détectés
-            - summary (dict): Résumé des leaks (bytes par type)
-            - leaks (list): Liste détaillée de chaque leak
+        Structured dictionary containing leak information and summary.
 
     Example:
         >>> report = "==123== 24 bytes in 1 blocks are definitely lost..."
@@ -38,7 +28,7 @@ def parse_valgrind_report(report: str) -> Dict:
         True
     """
 
-    # Structure de base du résultat
+    # Basic result structure
     result = {
         "has_leaks": False,
         "summary": {
@@ -51,19 +41,20 @@ def parse_valgrind_report(report: str) -> Dict:
         "leaks": []
     }
 
-    # Vérification rapide : y a-t-il des leaks ?
+    # Quick check: are there any leaks?
     if "All heap blocks were freed -- no leaks are possible" in report:
         return result
 
-    # Extraction du résumé global
+    # Extract global summary
     summary = _extract_leak_summary(report)
     if summary:
         result["summary"] = summary
-        # Si definitely_lost ou indirectly_lost > 0, on a des leaks
+        
+        # If definitely_lost or indirectly_lost > 0, we have leaks
         if summary["definitely_lost"] > 0 or summary["indirectly_lost"] > 0:
             result["has_leaks"] = True
 
-    # Extraction des leaks individuels
+    # Extract individual leaks
     leaks = _extract_individual_leaks(report)
     if leaks:
         result["leaks"] = leaks
@@ -71,24 +62,24 @@ def parse_valgrind_report(report: str) -> Dict:
     return result
 
 
-def _extract_leak_summary(report: str) -> Optional[Dict]:
+def _extract_leak_summary(report: str) -> Optional[ValgrindSummary]:
     """
-    Extrait le résumé global des leaks depuis la section LEAK SUMMARY.
+    Extract global leak summary from LEAK SUMMARY section.
 
-    Cherche la section :
+    Searches for:
     ==PID== LEAK SUMMARY:
     ==PID==    definitely lost: X bytes in Y blocks
     ==PID==    indirectly lost: X bytes in Y blocks
     ...
 
     Args:
-        report: Le rapport Valgrind complet
+        report: Complete Valgrind report.
 
     Returns:
-        dict ou None: Dictionnaire avec les bytes par type de leak
+        Dictionary with bytes per leak type, or None if no summary found.
     """
 
-    # Pattern pour trouver la section LEAK SUMMARY
+    # Pattern to find LEAK SUMMARY section
     summary_pattern = r"LEAK SUMMARY:"
 
     if not re.search(summary_pattern, report):
@@ -102,8 +93,8 @@ def _extract_leak_summary(report: str) -> Optional[Dict]:
         "total_leaked": 0
     }
 
-    # Pattern pour extraire chaque ligne du summary
-    # Exemple: "==28==    definitely lost: 74 bytes in 2 blocks"
+    # Pattern to extract each summary line
+    # Example: "==28==    definitely lost: 74 bytes in 2 blocks"
     line_pattern = r"==\d+==\s+(definitely lost|indirectly lost|possibly lost|still reachable):\s+(\d+)\s+bytes"
 
     matches = re.finditer(line_pattern, report)
@@ -115,36 +106,36 @@ def _extract_leak_summary(report: str) -> Optional[Dict]:
         if leak_type in summary:
             summary[leak_type] = bytes_leaked
 
-    # Calcul du total leaked (definitely + indirectly)
+    # Calculate total leaked (definitely + indirectly)
     summary["total_leaked"] = summary["definitely_lost"] + summary["indirectly_lost"]
 
     return summary
 
 
-def _extract_individual_leaks(report: str) -> List[Dict]:
+def _extract_individual_leaks(report: str) -> list[ValgrindError]:
     """
-    Extrait chaque leak individuel avec ses détails (bytes, fichier, ligne).
+    Extract individual leak details (bytes, file, line).
 
-    Cherche les blocs de la forme :
+    Searches for blocks like:
     ==PID== 24 bytes in 1 blocks are definitely lost in loss record 1 of 2
     ==PID==    at 0x4846828: malloc (...)
     ==PID==    by 0x109270: main (test_multiple_errors.c:37)
 
     Args:
-        report: Le rapport Valgrind complet
+        report: Complete Valgrind report.
 
     Returns:
-        list: Liste de dictionnaires, un par leak détecté
+        List of dictionaries, one per detected leak.
     """
 
     leaks = []
 
 
-    # Pattern pour détecter le début d'un leak
-    # Exemple: "==28== 24 bytes in 1 blocks are definitely lost in loss record 1 of 2"
+    # Pattern to detect leak start
+    # Example: "==28== 24 bytes in 1 blocks are definitely lost in loss record 1 of 2"
     leak_header_pattern = r"==\d+==\s+(\d+)(?:\s+\([^)]+\))?\s+bytes in\s+(\d+)\s+blocks? (?:is |are )(definitely|possibly) lost"
 
-    # Trouve tous les headers de leak
+    # Find all leak headers
     header_matches = list(re.finditer(leak_header_pattern, report))
 
     for header_match in header_matches:
@@ -152,10 +143,10 @@ def _extract_individual_leaks(report: str) -> List[Dict]:
         blocks_count = int(header_match.group(2))
         leak_type = header_match.group(3) + " lost"
 
-        # Position dans le texte où commence ce leak
+        # Position in text where this leak starts
         start_pos = header_match.end()
 
-        # On cherche la location (fichier:ligne) dans les lignes suivantes
+        # Search for location (file:line) in following lines
         # Pattern: "by 0xADDRESS: function_name (file.c:123)"
         location_info = _parse_leak_location(report, start_pos)
 
@@ -174,23 +165,23 @@ def _extract_individual_leaks(report: str) -> List[Dict]:
     return leaks
 
 
-def _parse_leak_location(report: str, start_pos: int) -> Dict:
+def _parse_leak_location(report: str, start_pos: int) -> dict:
     """
-    Parse la location complète d'un leak avec toute la backtrace.
+    Parse complete leak location with full backtrace.
 
-    Extrait TOUTES les fonctions de la pile d'appels, de l'allocation
-    jusqu'au point d'entrée (main), pour avoir le contexte complet.
+    Extracts ALL functions from the call stack, from allocation
+    to entry point (main), for complete context.
 
     Args:
-        report: Le rapport Valgrind complet
-        start_pos: Position dans le rapport où commencer la recherche
+        report: Complete Valgrind report.
+        start_pos: Position in report to start searching.
 
     Returns:
-        dict: Contient 'file', 'line', 'function' pour la première entrée,
-              et 'backtrace' avec la pile complète
+        Dictionary containing 'file', 'line', 'function' for first entry,
+        and 'backtrace' with complete call stack.
     """
 
-    # Fonctions système à ignorer
+    # System functions to ignore
     SYSTEM_FUNCTIONS = {'malloc', 'calloc', 'realloc', 'free', 'strdup',
                         'memcpy', 'memmove', 'memset'}
 
@@ -220,12 +211,12 @@ def _parse_leak_location(report: str, start_pos: int) -> Dict:
         file = match.group(2)
         line = int(match.group(3))
 
-        # NOUVEAU : Capturer la première fonction système (l'allocation)
+        # Capture first system function (allocation)
         if allocation_line is None and function in SYSTEM_FUNCTIONS:
-            allocation_line = match.group(0)  # Garde la ligne complète
-            continue  # On la filtre quand même du backtrace
+            allocation_line = match.group(0)  # Keep complete line
+            continue  # Filter it from backtrace anyway
 
-        # Filtrer les fonctions système ET les fichiers système
+        # Filter system functions AND system files
         if function in SYSTEM_FUNCTIONS:
             continue
         if file.startswith("/usr/") or file.startswith("vg_"):
