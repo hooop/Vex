@@ -19,6 +19,7 @@ from code_extractor import extract_call_stack
 from colors import RESET, DARK_GREEN, RED
 from display import display_analysis, display_leak_menu
 from memory_tracker import find_root_cause, convert_extracted_code
+from menu import interactive_menu
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
 from type_defs import ParsedValgrindReport, ValgrindError, BuildResult
 from valgrind_parser import parse_valgrind_report
@@ -128,8 +129,10 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
     # Display Valgrind summary
     display_summary(parsed_data)
 
-    # Pause before continuing
-    input("[Press Enter to continue...]")
+    # Display menu
+    choice = interactive_menu(["Continue analysis", "Quit Vex"])
+    if choice == 1:  # "Quit Vex" selected
+        return None
 
     # Re-extract code
     _extract_source_code(parsed_errors)
@@ -227,7 +230,14 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
             display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
 
             # Menu after each leak
-            choice = display_leak_menu()
+            menu_choice = interactive_menu(["Verify", "Next leak", "Quit"])
+
+            if menu_choice == 0:
+                choice = "verify"
+            elif menu_choice == 1:
+                choice = "skip"
+            elif menu_choice == 2:
+                choice = "quit"
 
             if choice == "verify":
                 # Recompile
@@ -240,6 +250,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
                 return "need_recompile"
 
             elif choice == "skip":
+                clear_screen()
                 # Skip to next
                 if i < len(parsed_errors):
                     continue
@@ -312,28 +323,16 @@ def main() -> int:
         # Display Valgrind summary
         display_summary(parsed_data)
 
-        # Réafficher le vrai curseur
+        # Show real cursor
         print("\033[?25h", end="", flush=True)
 
-        # Show real cursor
-        while True:
-            choice = input(DARK_GREEN + "Start leak analysis ? [Y/n] " + RESET).strip().lower()
+        
+        # Afficher le menu
+        choice = interactive_menu(["Start analysis", "Quit Vex"])
 
-            if choice == "" or choice == "y":
-                break
-            elif choice == "n":
-                print()
-                print()
-                return SUCCESS
-            else:
-                # Display error message below
-                print(RED + "Invalid choice. Press ENTER or type 'n'." + RESET)
-                # Move up two lines
-                sys.stdout.write("\033[F")
-                sys.stdout.write("\033[F")
-                # Return to line start and clear
-                sys.stdout.write("\r" + " " * 80 + "\r")
-                sys.stdout.flush()
+        if choice == 1:  # "Quit" sélectionné
+            print()
+            return SUCCESS
 
         # ========================================
         # START ANALYSIS LOOP
@@ -371,14 +370,13 @@ def main() -> int:
                 print("\nAnalysis complete !\n")
                 return SUCCESS
             elif status == "quit":
-                print("Goodbye !\n")
                 return SUCCESS
 
     except ExecutableNotFoundError as e:
         print_error(str(e))
         return ERROR
 
-    except ValgrindError as e:
+    except ValgrindRunnerError as e:
         print_error(f"Issue with Valgrind :\n{e}")
         return ERROR
 
@@ -388,7 +386,7 @@ def main() -> int:
 
     except KeyboardInterrupt:
         print("\n\nAnalysis interrupted by user.\n")
-        return ERROR
+        return SUCCESS
 
     except Exception as e:
         print_error(f"Unexpected error : {e}")

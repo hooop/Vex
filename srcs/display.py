@@ -424,7 +424,7 @@ def _build_explanations_section(analysis: MistralAnalysis) -> str:
 
     # Explanation content
     explanations = analysis.get('explanations', 'No explanation available')
-    output += f"{LIGHT_YELLOW}{explanations}{RESET}\n\n"
+    output += f"{LIGHT_YELLOW}{explanations}{RESET}\n"
 
     return output
 
@@ -459,6 +459,7 @@ def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_numb
     print(_build_solution_section(analysis))
 
     print(_build_explanations_section(analysis))
+
 
 def display_leak_menu() -> str:
     """
