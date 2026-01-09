@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
-"""
-Vex - Valgrind Error eXplorer
-Command-line tool for analyzing memory leaks in C programs.
 
-Usage: vex <executable> [args...]
+"""
+Vex - Valgrind Error eXplorer.
+
+Command-line tool for analyzing memory leaks in C programs.
+Integrates Valgrind execution, source code extraction, memory tracking
+analysis, and AI-powered explanations.
+
+Usage: ./vex.py <executable> [args...]
 """
 
 import sys
-import os
 import time
-import threading
-from typing import Dict, List, Tuple, Optional
-from memory_tracker import find_root_cause, convert_extracted_code
+from typing import Optional
 
-# Import des modules Vex
-from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError
-from valgrind_parser import parse_valgrind_report
-from code_extractor import extract_call_stack
-from mistral_analyzer import analyze_with_mistral, MistralAPIError
-from display import display_analysis, display_leak_menu
-from welcome import clear_screen, display_logo, start_spinner, stop_spinner, start_block_spinner, stop_block_spinner, display_summary, display_menu
 from builder import rebuild_project
+from code_extractor import extract_call_stack
+from display import display_analysis, display_leak_menu
+from memory_tracker import find_root_cause, convert_extracted_code
+from mistral_analyzer import analyze_with_mistral, MistralAPIError
+from type_defs import ParsedValgrindReport, ValgrindError, BuildResult
+from valgrind_parser import parse_valgrind_report
+from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError as ValgrindRunnerError
+from welcome import (
+    clear_screen,
+    display_logo,
+    start_spinner,
+    stop_spinner,
+    start_block_spinner,
+    stop_block_spinner,
+    display_summary
+)
 
 # Return codes
 SUCCESS = 0
@@ -32,32 +42,39 @@ DARK_GREEN = "\033[38;5;49m"
 RED = "\033[38;5;174m"
 
 def print_error(message: str) -> None:
-    """Affiche un message d'erreur formaté."""
+    """
+    Display a formatted error message.
+    
+    Args:
+        message: Error message to display.
+    """
+
     print(f"\nError : {message}\n", file=sys.stderr)
 
 
-def _run_valgrind_analysis(executable: str, program_args: List[str]) -> Dict:
+def _run_valgrind_analysis(executable: str, program_args: list[str]) -> ParsedValgrindReport:
     """
-    Exécute Valgrind et parse le rapport.
+    Execute Valgrind and parse the report.
 
     Args:
-        executable: Chemin vers l'exécutable
-        program_args: Arguments du programme
+        executable: Path to the executable.
+        program_args: Program arguments.
 
     Returns:
-        Dict contenant has_leaks, summary, leaks
+        Dictionary containing has_leaks, summary, and leaks.
     """
-    # Construction de la commande complète
+
+    # Build complete command
     full_command = executable
     if program_args:
         full_command += " " + " ".join(program_args)
 
-    # Exécution de Valgrind
+    # Execute Valgrind
     t = start_spinner("Running Valgrind")
     valgrind_output = run_valgrind(full_command)
     stop_spinner(t, "Running Valgrind")
 
-    # Parsing du rapport
+    # Parse report
     t = start_spinner("Parsing report")
     parsed_data = parse_valgrind_report(valgrind_output)
     stop_spinner(t, "Parsing report")
@@ -65,42 +82,43 @@ def _run_valgrind_analysis(executable: str, program_args: List[str]) -> Dict:
     return parsed_data
 
 
-def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> Optional[Tuple[List[Dict], int]]:
+def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> Optional[tuple[list[ValgrindError], int]]:
     """
-    Re-lance Valgrind après compilation et affiche le delta.
+    Re-run Valgrind after compilation and display delta.
 
     Args:
-        full_command: Commande complète (executable + args)
-        initial_leak_count: Nombre de leaks avant la correction
+        full_command: Complete command (executable + args).
+        initial_leak_count: Number of leaks before fix.
 
     Returns:
-        None si tous les leaks sont résolus
-        (parsed_errors, new_leak_count) sinon
+        None if all leaks resolved.
+        (parsed_errors, new_leak_count) otherwise.
     """
+
     clear_screen()
     display_logo()
 
     RED = "\033[38;5;174m"
     RESET = "\033[0m"
 
-    # Re-lancer Valgrind
+    # Re-run Valgrind
     t = start_spinner("Running Valgrind")
     valgrind_output = run_valgrind(full_command)
     stop_spinner(t, "Running Valgrind")
 
-    # Re-parser
+    # Re-parse
     t = start_spinner("Parsing report")
     parsed_data = parse_valgrind_report(valgrind_output)
     stop_spinner(t, "Parsing report")
 
-    # Vérifier s'il reste des leaks
+    # Check if leaks remain
     new_leak_count = len(parsed_data.get('leaks', []))
 
     if new_leak_count == 0:
         print(f"\n{RED}All leaks resolved !{RESET}\n")
         return None
 
-    # Afficher le delta
+    # Display delta
     resolved_count = initial_leak_count - new_leak_count
     leak_word = "leak" if new_leak_count == 1 else "leaks"
     resolved_word = "leak resolved" if resolved_count == 1 else "leaks resolved"
@@ -111,24 +129,29 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
     else:
         print(f"\n{RED}Still {new_leak_count} {detected_word}{RESET}")
 
-    # Mettre à jour les données
+    # Update data
     parsed_errors = parsed_data.get('leaks', [])
 
-    # Affichage du résumé Valgrind
+    # Display Valgrind summary
     display_summary(parsed_data)
 
-    # Pause avant de continuer
+    # Pause before continuing
     input("[Press Enter to continue...]")
 
-    # Re-extraire le code
+    # Re-extract code
     _extract_source_code(parsed_errors)
 
     return (parsed_errors, new_leak_count)
 
-def _extract_source_code(parsed_errors: List[Dict]) -> None:
+
+def _extract_source_code(parsed_errors: list[ValgrindError]) -> None:
     """
-    Extrait le code source pour chaque leak si pas déjà fait.
+    Extract source code for each leak if not already done.
+    
+    Args:
+        parsed_errors: List of parsed Valgrind errors.
     """
+
     if not parsed_errors[0].get('extracted_code'):
         clear_screen()
         t = start_spinner("Extracting source code")
@@ -142,10 +165,14 @@ def _extract_source_code(parsed_errors: List[Dict]) -> None:
         stop_spinner(t, "Extracting source code")
 
 
-def _find_root_causes(parsed_errors: List[Dict]) -> None:
+def _find_root_causes(parsed_errors: list[ValgrindError]) -> None:
     """
     Find root cause for each leak using memory tracking algorithm.
+
+    Args:
+        parsed_errors: List of parsed Valgrind errors with extracted code.
     """
+
     t = start_spinner("Analyzing memory paths")
 
     for error in parsed_errors:
@@ -168,18 +195,19 @@ def _find_root_causes(parsed_errors: List[Dict]) -> None:
     stop_spinner(t, "Analyzing memory paths")
 
 
-def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
+def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> str:
     """
-    Traite tous les leaks un par un.
+    Process all leaks one by one.
 
     Args:
-        parsed_errors: Liste des leaks à traiter
-        executable: Chemin vers l'exécutable (pour recompilation)
+        parsed_errors: List of leaks to process.
+        executable: Path to executable (for recompilation).
 
     Returns:
-        str: "completed" si tous traités, "need_recompile" si [v] choisi, "quit" si [q] choisi
+        "completed" if all processed, "need_recompile" if [v] chosen, "quit" if [q] chosen.
     """
-    # Masquer le vrai curseur
+
+    # Hide real cursor
     print("\033[?25l", end="", flush=True)
 
     t = start_block_spinner("Calling Mistral AI")
@@ -187,30 +215,29 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
     for i, error in enumerate(parsed_errors, 1):
         try:
 
-            # Masquer le curseur avant le spinner
+            # Hide cursor before spinner
             print("\033[?25l", end="", flush=True)
 
-            # Démarrer le spinner pour ce leak
+            # Start spinner for this leak
             t = start_block_spinner("Calling Mistral AI")
-            time.sleep(0.1)  # ← AJOUTER cette ligne (laisse le thread démarrer)
+            time.sleep(0.1)
             
-            # Analyse de l'erreur
+            # Analyze error
             analysis = analyze_with_mistral(error)
             
-            # Arrêter le spinner après l'analyse
+            # Stop spinner after analysis
             stop_block_spinner(t, "Calling Mistral AI")
 
-            # Affichage
-                # Réafficher le vrai curseur
+            # Show real cursor
             print("\033[?25h", end="", flush=True)
 
             display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
 
-            # Menu après chaque leak
+            # Menu after each leak
             choice = display_leak_menu()
 
             if choice == "verify":
-                # Recompiler
+                # Recompile
                 result = rebuild_project(executable)
                 if not result['success']:
                     print(result['output'])
@@ -220,11 +247,11 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
                 return "need_recompile"
 
             elif choice == "skip":
-                # Passer au suivant
+                # Skip to next
                 if i < len(parsed_errors):
                     continue
                 else:
-                    # C'était le dernier leak
+                    # Was the last leak
                     return "completed"
 
             elif choice == "quit":
@@ -236,20 +263,21 @@ def _process_all_leaks(parsed_errors: List[Dict], executable: str) -> str:
             print_error(f"Error analyzing leak #{i}: {e}")
             continue
 
-    # Si on arrive ici, tous les leaks ont été traités
+    # If we reach here, all leaks processed
     return "completed"
 
-def _parse_command_line() -> Tuple[str, List[str], str]:
+def _parse_command_line() -> tuple[str, list[str], str]:
     """
-    Parse les arguments de la ligne de commande.
+    Parse command line arguments.
 
     Returns:
-        Tuple: (executable, program_args, full_command)
+        Tuple: (executable, program_args, full_command).
     """
+
     executable = sys.argv[1]
     program_args = sys.argv[2:]
 
-    # Construction de la commande complète
+    # Build complete command
     full_command = executable
     if program_args:
         full_command += " " + " ".join(program_args)
@@ -258,49 +286,43 @@ def _parse_command_line() -> Tuple[str, List[str], str]:
 
 def main() -> int:
     """
-    Point d'entrée principal de Vex.
+    Main entry point for Vex.
 
     Returns:
-        0 si succès, 1 si erreur
+        0 if success, 1 if error.
     """
-    # Vérification des arguments
+
+    # Check arguments
     if len(sys.argv) < 2:
         return ERROR
 
-    # unpacking du tuple qui est retourné
+    # Unpack returned tuple
     executable, program_args, full_command = _parse_command_line()
 
     try:
-        # Affichage du logo et démarrage
         clear_screen()
-        # Masquer le vrai curseur
+
+        # Hide real cursor
         print("\033[?25l", end="", flush=True)
         time.sleep(1)
         display_logo()
 
-        # Analyse Valgrind, renvoie un dictionnaire avec tous les leaks
+        # Valgrind analysis, returns dictionary with all leaks
         parsed_data = _run_valgrind_analysis(executable, program_args)
 
-        # Si la liste des leaks est vide on termnine
+        # If leak list is empty, exit
         parsed_errors = parsed_data.get('leaks', [])
         if not parsed_errors:
             print("\nNo memory leaks detected !\n")
             return SUCCESS
 
-        # Affichage du résumé Valgrind
+        # Display Valgrind summary
         display_summary(parsed_data)
-
-        # Menu : commencer ou quitter
-        # choice = display_menu()
-
-        # if choice == "quit":
-        #     print("Au revoir :)\n")
-        #     return SUCCESS
 
         # Réafficher le vrai curseur
         print("\033[?25h", end="", flush=True)
 
-        # Menu : commencer ou quitter
+        # Show real cursor
         while True:
             choice = input(DARK_GREEN + "Start leak analysis ? [Y/n] " + RESET).strip().lower()
 
@@ -311,28 +333,28 @@ def main() -> int:
                 print()
                 return SUCCESS
             else:
-                # Afficher le message d'erreur en dessous
+                # Display error message below
                 print(RED + "Invalid choice. Press ENTER or type 'n'." + RESET)
-                # Remonter de deux lignes
+                # Move up two lines
                 sys.stdout.write("\033[F")
                 sys.stdout.write("\033[F")
-                # Revenir au début de la ligne et effacer
+                # Return to line start and clear
                 sys.stdout.write("\r" + " " * 80 + "\r")
                 sys.stdout.flush()
 
         # ========================================
-        # DÉBUT DE LA BOUCLE D'ANALYSE
+        # START ANALYSIS LOOP
         # ========================================
 
-        # Stockage du nombre initial de leaks (taille de la liste)
+        # Store initial leak count (list size)
         initial_leak_count = len(parsed_errors)
 
-        # Variable pour savoir si on doit tout re-analyser
+        # Variable to track if we need to re-analyze
         need_reanalysis = False
 
         while True:
 
-            # Si besoin de re-analyser (après [v])
+            # If need to re-analyze (after [v])
             if need_reanalysis:
                 result = _reanalyze_after_compilation(full_command, initial_leak_count)
                 if result is None:
@@ -341,13 +363,13 @@ def main() -> int:
                 parsed_errors, initial_leak_count = result
                 need_reanalysis = False
 
-            # Extraire le code source
+            # Extract source code
             _extract_source_code(parsed_errors)
 
-            # Trouver les root causes
+            # Find root causes
             _find_root_causes(parsed_errors)
 
-            # Traiter tous les leaks
+            # Process all leaks
             status = _process_all_leaks(parsed_errors, executable)
 
             if status == "need_recompile":
