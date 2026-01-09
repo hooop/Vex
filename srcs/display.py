@@ -3,11 +3,16 @@ Display Module for Vex
 
 Formats and displays analysis results in the terminal.
 """
+
 import os
 import re
 import sys
 from typing import Optional
 
+from colors import (
+    RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW,
+    DARK_PINK, RED, GRAY, GRAY_DARK
+)
 from type_defs import ValgrindError, MistralAnalysis, RealCause, CleanedCodeLines 
 
 def _build_header(error_number: int, total_errors: int) -> str:
@@ -21,9 +26,6 @@ def _build_header(error_number: int, total_errors: int) -> str:
     Returns:
         Formatted header with ANSI colors
     """
-
-    DARK_GREEN = "\033[38;5;49m"
-    RESET = "\033[0m"
 
     print()
 
@@ -54,10 +56,6 @@ def _build_valgrind_section(error: ValgrindError) -> str:
     Returns:
         Formatted section with ANSI colors
     """
-
-    GREEN = "\033[38;5;158m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    RESET = "\033[0m"
 
     # Title
     output = f"{GREEN}• Valgrind Output{RESET}\n\n"
@@ -95,10 +93,6 @@ def _build_analysis_section(analysis: MistralAnalysis) -> str:
     Returns:
         Formatted section with ANSI colors
     """
-    GREEN = "\033[38;5;158m"
-    DARK_YELLOW = "\033[38;5;228m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    RESET = "\033[0m"
 
     leak_type_labels = {
         1: "Memory was never freed",
@@ -130,11 +124,6 @@ def _build_reasoning_section(analysis: MistralAnalysis) -> str:
     Returns:
         Formatted section with ANSI colors
     """
-
-    GREEN = "\033[38;5;158m"
-    DARK_YELLOW = "\033[38;5;228m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    RESET = "\033[0m"
 
     reasoning = analysis.get('reasoning', [])
 
@@ -295,12 +284,6 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
         Formatted section with ANSI colors
     """
 
-    GREEN = "\033[38;5;158m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    DARK_PINK = "\033[38;5;205m"
-    GRAY = "\033[38;5;236m"
-    RESET = "\033[0m"
-
     cause = analysis.get('real_cause')
     if not cause:
         return ""
@@ -383,19 +366,19 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
             prev_line = lines_to_display[i-1]['line']
             curr_line = item['line']
             if curr_line - prev_line > 1:
-                output += f"      {GRAY}-{RESET}\n"
+                output += f"      {GRAY_DARK}-{RESET}\n"
 
         # Display line
         if item['is_root']:
             output += f"{DARK_PINK} ➤ {item['line']} | {item['code']}{RESET}"
             if item['comment']:
-                output += f"  {GRAY}// {item['comment']}{RESET}"
+                output += f"  {GRAY_DARK}// {item['comment']}{RESET}"
             output += "\n"
         else:
             # Normal line
             output += f"   {item['line']} | {item['code']}"
             if item['comment']:
-                output += f"  {GRAY}// {item['comment']}{RESET}"
+                output += f"  {GRAY_DARK}// {item['comment']}{RESET}"
             output += "\n"
 
     output += "\n"
@@ -413,10 +396,6 @@ def _build_solution_section(analysis: MistralAnalysis) -> str:
     Returns:
         Formatted section with ANSI colors
     """
-
-    GREEN = "\033[38;5;158m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    RESET = "\033[0m"
 
     output = f"{GREEN}• Proposed Solution{RESET}\n\n"
 
@@ -440,10 +419,6 @@ def _build_explanations_section(analysis: MistralAnalysis) -> str:
     Returns:
         Formatted section with ANSI colors
     """
-
-    GREEN = "\033[38;5;158m"
-    LIGHT_YELLOW = "\033[38;5;230m"
-    RESET = "\033[0m"
 
     output = f"{GREEN}• Explanation{RESET}\n\n"
 
@@ -492,11 +467,6 @@ def display_leak_menu() -> str:
     Returns:
         "verify", "skip", or "quit"
     """
-
-    DARK_GREEN = "\033[38;5;49m"
-    GRAY = "\033[38;5;240m"
-    RED = "\033[38;5;174m"
-    RESET = "\033[0m"
 
     print(GRAY + "v ▸ Verify  ‧  n ▸ Next  ‧  q ▸ Quit")
     print("")
