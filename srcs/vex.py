@@ -132,6 +132,7 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
     # Display menu
     choice = interactive_menu(["Continue analysis", "Quit Vex"])
     if choice == 1:  # "Quit Vex" selected
+        print()
         return None
 
     # Re-extract code
@@ -230,7 +231,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
             display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
 
             # Menu after each leak
-            menu_choice = interactive_menu(["Verify", "Next leak", "Quit"])
+            menu_choice = interactive_menu(["Verify", "Next leak", "Quit Vex"])
 
             if menu_choice == 0:
                 choice = "verify"
@@ -259,6 +260,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
                     return "completed"
 
             elif choice == "quit":
+                print()
                 return "quit"
 
         except MistralAPIError as e:
