@@ -177,8 +177,9 @@ def _is_system_file(filepath: str) -> bool:
 
 def _find_source_file(filename: str) -> Optional[str]:
     """
-    Search for a source file in current directory and subdirectories.
-
+    Search for source file by intelligently traversing directory tree.
+    Finds project root first, then searches recursively from there.
+    
     Args:
         filename: Name of the file to find (e.g., "push_swap_utils.c")
 
@@ -186,26 +187,57 @@ def _find_source_file(filename: str) -> Optional[str]:
         Full path to the file if found, None otherwise
     """
     import subprocess
-
-    # Extract just the filename if a path was given
+    import os
+    
     basename = os.path.basename(filename)
-
-    # Search from current directory
-    try:
-        result = subprocess.run(
-            ['find', '.', '-name', basename, '-type', 'f'],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-
-        if result.returncode == 0 and result.stdout.strip():
-            # Return the first match
-            first_match = result.stdout.strip().split('\n')[0]
-            return first_match
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
-        pass
-
+    
+    # Project markers that indicate root directory
+    project_markers = ['Makefile', 'CMakeLists.txt', 'src', 'include', '.git']
+    
+    def find_project_root(start_dir):
+        """Find project root by looking for markers, up to 3 levels up"""
+        current = start_dir
+        levels_checked = 0
+        
+        while levels_checked < 3:
+            if any(os.path.exists(os.path.join(current, marker)) for marker in project_markers):
+                return current
+            
+            parent = os.path.dirname(current)
+            if parent == current:  # Already at filesystem root
+                break
+            current = parent
+            levels_checked += 1
+        
+        return start_dir  # Fallback to current directory
+    
+    # Determine best search starting point
+    search_root = find_project_root(os.getcwd())
+    
+    # Build list of paths to search
+    search_paths = [search_root]
+    
+    # Add common source directories if they exist
+    for common_dir in ['src', 'source', 'sources', 'lib', 'include']:
+        candidate_path = os.path.join(search_root, common_dir)
+        if os.path.exists(candidate_path) and os.path.isdir(candidate_path):
+            search_paths.append(candidate_path)
+    
+    # Search in each path
+    for search_path in search_paths:
+        try:
+            result = subprocess.run(
+                ['find', search_path, '-name', basename, '-type', 'f'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip().split('\n')[0]
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+            continue
+    
     return None
 
 

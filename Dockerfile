@@ -19,5 +19,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Copy Vex source code
+COPY srcs/ /app/srcs/
+
 # Default command: open bash shell
 CMD ["/bin/bash"]

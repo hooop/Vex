@@ -3,7 +3,7 @@
 # Docker-based build system for memory leak analysis
 # ============================================================================
 
-.PHONY: all run rebuild shell clean logs help build
+.PHONY: all run rebuild shell clean logs help build install uninstall
 
 # ============================================================================
 # Configuration
@@ -18,6 +18,8 @@ else
 endif
 
 # ANSI color codes
+LIGHT_PINK := \033[38;5;225m
+PINK := \033[38;5;219m
 YELLOW := \033[38;5;214m
 GREEN  := \033[38;5;49m
 RED    := \033[38;5;196m
@@ -40,11 +42,13 @@ help:
 	@echo "$(GREEN)Vex - Valgrind Error eXplorer$(RESET)"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  $(BLUE)make run$(RESET)      - Compile and run Vex (builds image if needed)"
-	@echo "  $(BLUE)make rebuild$(RESET)  - Force rebuild Docker image"
-	@echo "  $(BLUE)make shell$(RESET)    - Open interactive shell in container"
-	@echo "  $(BLUE)make logs$(RESET)     - Display last build logs"
-	@echo "  $(BLUE)make clean$(RESET)    - Remove Docker image"
+	@echo "  $(BLUE)make run$(RESET)        - Compile and run Vex (builds image if needed)"
+	@echo "  $(BLUE)make install$(RESET)    - Install Vex globally (requires sudo)"
+	@echo "  $(BLUE)make uninstall$(RESET)  - Remove Vex installation (requires sudo)"
+	@echo "  $(BLUE)make rebuild$(RESET)    - Force rebuild Docker image"
+	@echo "  $(BLUE)make shell$(RESET)      - Open interactive shell in container"
+	@echo "  $(BLUE)make logs$(RESET)       - Display last build logs"
+	@echo "  $(BLUE)make clean$(RESET)      - Remove Docker image"
 	@echo ""
 
 # Compile test project and run Vex
@@ -106,3 +110,25 @@ build:
 	@printf "$(YELLOW)- $(RESET)Building Docker image\n"
 	@docker build $(PLATFORM) -t vex .
 	@printf "$(GREEN)✓ $(RESET)Docker image ready\n"
+
+# Install Vex globally
+install: build
+	@echo ""
+	@printf "$(YELLOW)- $(RESET)Installing Vex globally\n"
+	@chmod +x vex_cli
+	@echo "$(YELLOW)- $(RESET)Installing to /usr/local/bin/vex"
+	@sudo cp vex_cli /usr/local/bin/vex
+	@printf "$(GREEN)✓ $(RESET)Vex installed successfully!\n"
+	@echo ""
+	@echo "$(PINK)1. Configure your API key$(RESET)"
+	@echo "$(LIGHT_PINK)vex configure$(RESET)"
+	@echo ""
+	@echo "$(PINK)2. Run Vex from anywhere:$(RESET)"
+	@echo "$(LIGHT_PINK)vex ./my_program$(RESET)"
+	@echo ""
+
+# Uninstall Vex
+uninstall:
+	@printf "$(YELLOW)- $(RESET)Removing Vex installation\n"
+	@sudo rm -f /usr/local/bin/vex
+	@printf "$(GREEN)✓ $(RESET)Vex uninstalled\n"

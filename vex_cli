@@ -1,0 +1,111 @@
+#!/bin/bash
+
+CONFIG_FILE="$HOME/.vexrc"
+
+# ANSI color codes
+GREEN="\033[38;5;49m"
+YELLOW="\033[38;5;214m"
+BLUE="\033[38;5;31m"
+RED="\033[38;5;196m"
+RESET="\033[0m"
+
+# Handle 'vex configure' command
+if [ "$1" = "configure" ]; then
+    echo ""
+    read -p "$(echo -e "${YELLOW} - ${RESET}Enter your Mistral API key: ")" api_key
+    
+    if [ -z "$api_key" ]; then
+        echo -e "${RED} × ${RESET}Error: API key cannot be empty"
+        exit 1
+    fi
+    
+    echo "MISTRAL_API_KEY=$api_key" > "$CONFIG_FILE"
+    chmod 600 "$CONFIG_FILE"
+    
+    echo ""
+    echo -e "${GREEN} ✓ ${RESET} Configuration saved to $CONFIG_FILE"
+    echo -e "${GREEN} ✓ ${RESET} You can now use vex from anywhere!"
+    echo ""
+    exit 0
+fi
+
+# Normal vex usage
+if [ $# -lt 1 ]; then
+    echo "Usage: vex <executable> [args...]"
+    echo "       vex configure"
+    echo ""
+    echo "Examples:"
+    echo "  vex ./my_program"
+    echo "  vex ./my_program arg1 arg2"
+    echo "  vex configure              # Configure Mistral API key"
+    exit 1
+fi
+
+EXECUTABLE="$1"
+shift
+ARGS=("$@")
+
+# Verify executable exists
+if [ ! -f "$EXECUTABLE" ]; then
+    echo "Error: Executable '$EXECUTABLE' not found"
+    exit 1
+fi
+
+if [ ! -x "$EXECUTABLE" ]; then
+    echo "Warning: '$EXECUTABLE' is not executable, attempting to make it executable..."
+    chmod +x "$EXECUTABLE"
+fi
+
+# Get absolute path of current directory
+CURRENT_DIR=$(pwd)
+
+# Find .env file by traversing up the directory tree (fallback)
+find_env_file() {
+    local dir="$1"
+    local levels=0
+    
+    while [ "$levels" -lt 5 ]; do
+        if [ -f "$dir/.env" ]; then
+            if grep -q "MISTRAL_API_KEY" "$dir/.env" 2>/dev/null; then
+                echo "$dir/.env"
+                return 0
+            fi
+        fi
+        
+        local parent=$(dirname "$dir")
+        if [ "$parent" = "$dir" ]; then
+            break
+        fi
+        dir="$parent"
+        levels=$((levels + 1))
+    done
+    
+    return 1
+}
+
+# Priority 1: Check for global config file
+if [ -f "$CONFIG_FILE" ]; then
+    ENV_SOURCE="$CONFIG_FILE"
+# Priority 2: Check for local .env file
+else
+    ENV_FILE=$(find_env_file "$CURRENT_DIR")
+    if [ -n "$ENV_FILE" ]; then
+        ENV_SOURCE="$ENV_FILE"
+    else
+        echo "Error: No Mistral API key configured"
+        echo ""
+        echo "Please run: vex configure"
+        echo ""
+        echo "Or create a .env file with:"
+        echo "  MISTRAL_API_KEY=your_api_key"
+        echo ""
+        exit 1
+    fi
+fi
+
+# Run Vex in Docker container
+docker run -it --rm \
+    --env-file "$ENV_SOURCE" \
+    -v "$CURRENT_DIR:/work" \
+    -w /work \
+    vex /app/srcs/vex.py "$EXECUTABLE" "${ARGS[@]}" 2>/dev/null

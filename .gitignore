@@ -12,6 +12,7 @@ examples/core
 logo.txt
 *.o
 iteration_prompt.md
+.env.backup
 
 # Binaires compilés
 test_cases/leaky
