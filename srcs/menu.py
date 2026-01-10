@@ -54,16 +54,7 @@ def read_key():
         # Restore terminal settings
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         
-        # Drain any remaining bytes in input buffer
-        tty.setcbreak(fd)
-        while True:
-            try:
-                if select.select([sys.stdin], [], [], 0)[0]:
-                    sys.stdin.read(1)
-                else:
-                    break
-            except:
-                break
+        # DON'T drain buffer - let animation check for keys
 
 
 def display_menu(options, selected_index):
@@ -91,29 +82,49 @@ def animate_block_reveal(text, delay=0.015):
     """
     Block animation: blocks eat text from left, then text reappears from left.
     Blocks alternate between pink and green colors.
+    Can be interrupted by key press.
     
     Args:
         text: Text to animate
         delay: Delay between frames
+    
+    Returns:
+        bool: True if animation completed, False if interrupted
     """
     colors = [LIGHT_PINK, DARK_GREEN]
     length = len(text)
     color_counter = 0
-    tick = 0
-    color_speed = 3  # Change color every 3 frames
+    color_speed = 3
     
-    # 1. Blocks eat text from left
+    def interruptible_sleep(duration):
+        """Sleep but check for key press frequently."""
+        sleep_interval = 0.005  # Check every 5ms
+        elapsed = 0
+        while elapsed < duration:
+            if select.select([sys.stdin], [], [], 0)[0]:
+                return True  # Key detected
+            time.sleep(sleep_interval)
+            elapsed += sleep_interval
+        return False  # No key
+    
+    # Phase 1: Blocks eat text from left
     for i in range(length + 1):
-        color = colors[(color_counter // color_speed) % 2]  # Divise par color_speed
+        color = colors[(color_counter // color_speed) % 2]
         blocks = '▉' * i
         remaining_text = text[i:]
         
         sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {color}{blocks}{RESET}{remaining_text}")
         sys.stdout.flush()
-        time.sleep(delay)
+        
+        if interruptible_sleep(delay):
+            # Key pressed! Stop and display final
+            sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {text}")
+            sys.stdout.flush()
+            return False
+        
         color_counter += 1
     
-    # 2. Text reappears from left
+    # Phase 2: Text reappears from left
     for i in range(length + 1):
         color = colors[(color_counter // color_speed) % 2]
         revealed_text = text[:i]
@@ -121,12 +132,19 @@ def animate_block_reveal(text, delay=0.015):
         
         sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {revealed_text}{color}{blocks}{RESET}")
         sys.stdout.flush()
-        time.sleep(delay)
+        
+        if interruptible_sleep(delay):
+            # Key pressed! Stop and display final
+            sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {text}")
+            sys.stdout.flush()
+            return False
+        
         color_counter += 1
     
     # Final: clean text
     sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {text}")
     sys.stdout.flush()
+    return True
 
 
 def interactive_menu(options):
