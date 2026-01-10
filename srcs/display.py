@@ -9,6 +9,7 @@ import re
 import sys
 from typing import Optional
 
+from code_extractor import _find_source_file 
 from colors import (
     RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW,
     DARK_PINK, RED, GRAY, GRAY_DARK
@@ -147,31 +148,21 @@ def _find_line_number(filepath: str, code_to_find: str) -> Optional[int]:
     """
     Searches for the line number of code in a source file.
     """
-
-    # List of paths to try
-    possible_paths = [
-        filepath,                           # leaky.c
-        os.path.join("src", filepath),      # src/leaky.c
-        os.path.join("../src", filepath),   # ../src/leaky.c
-    ]
-
-    # Try each path
-    for path in possible_paths:
-        if os.path.exists(path):
-            filepath = path
-            break
-    else:
-        return None  # No path found
-
+    # Use the robust search from code_extractor
+    found_path = _find_source_file(filepath)
+    
+    if not found_path:
+        return None
+    
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(found_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     except (IOError, UnicodeDecodeError):
         return None
 
     code_clean = code_to_find.strip()
 
-    for i, line in enumerate(lines, start = 1):
+    for i, line in enumerate(lines, start=1):
         if line.strip() == code_clean:
             return i
 
