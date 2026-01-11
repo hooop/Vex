@@ -310,7 +310,7 @@ def main() -> int:
 
         # Hide real cursor
         print("\033[?25l", end="", flush=True)
-        time.sleep(1)
+        time.sleep(0.2)
         display_logo()
 
         # Valgrind analysis, returns dictionary with all leaks

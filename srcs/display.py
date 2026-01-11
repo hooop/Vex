@@ -335,8 +335,8 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
     # File and function
     display_function = cause.get('function', error.get('function', 'unknown'))
 
-    output += f"{LIGHT_YELLOW}Fichier  : {source_file}:{cleaned['root_line']}\n"
-    output += f"Fonction : {display_function}(){RESET}\n\n"
+    output += f"{LIGHT_YELLOW}File     : {source_file}:{cleaned['root_line']}\n"
+    output += f"Function : {display_function}(){RESET}\n\n"
 
     # Build ordered list of all lines to display
     lines_to_display = []
