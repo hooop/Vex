@@ -15,7 +15,7 @@ if [ "$1" = "configure" ]; then
     read -p "$(echo -e "${YELLOW} - ${RESET}Enter your Mistral API key: ")" api_key
     
     if [ -z "$api_key" ]; then
-        echo -e "${RED} × ${RESET}Error: API key cannot be empty"
+        echo -e " ${RED}×${RESET} Error: API key cannot be empty"
         exit 1
     fi
     
@@ -25,7 +25,9 @@ if [ "$1" = "configure" ]; then
     echo ""
     echo -e "${GREEN} ✓ ${RESET} Configuration saved to $CONFIG_FILE"
     echo -e "${GREEN} ✓ ${RESET} You can now use vex from anywhere!"
-    echo ""
+    echo -e "${GREEN} ✓ ${RESET} Usage: vex ./<executable> [args...]"
+     echo ""
+
     exit 0
 fi
 

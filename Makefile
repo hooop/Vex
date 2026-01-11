@@ -1,9 +1,9 @@
 # ============================================================================
 # Vex - Valgrind Error eXplorer
-# Docker-based build system for memory leak analysis
+# Makefile for installation and development
 # ============================================================================
 
-.PHONY: all run rebuild shell clean logs help build install uninstall
+.PHONY: all help install uninstall shell clean
 
 # ============================================================================
 # Configuration
@@ -18,16 +18,11 @@ else
 endif
 
 # ANSI color codes
-LIGHT_PINK := \033[38;5;225m
-PINK := \033[38;5;219m
 YELLOW := \033[38;5;214m
+LIGHT_YELLOW := \033[38;5;230m
 GREEN  := \033[38;5;49m
-RED    := \033[38;5;196m
-BLUE   := \033[38;5;31m
+BLUE   := \033[38;5;211m
 RESET  := \033[0m
-
-# Build log file
-LOG_FILE := /tmp/vex_build.log
 
 # ============================================================================
 # Public Commands
@@ -38,97 +33,91 @@ all: help
 
 # Display available commands
 help:
-	@echo ""
-	@echo "$(GREEN)Vex - Valgrind Error eXplorer$(RESET)"
-	@echo ""
 	@echo "Available commands:"
-	@echo "  $(BLUE)make run$(RESET)        - Compile and run Vex (builds image if needed)"
 	@echo "  $(BLUE)make install$(RESET)    - Install Vex globally (requires sudo)"
 	@echo "  $(BLUE)make uninstall$(RESET)  - Remove Vex installation (requires sudo)"
-	@echo "  $(BLUE)make rebuild$(RESET)    - Force rebuild Docker image"
-	@echo "  $(BLUE)make shell$(RESET)      - Open interactive shell in container"
-	@echo "  $(BLUE)make logs$(RESET)       - Display last build logs"
-	@echo "  $(BLUE)make clean$(RESET)      - Remove Docker image"
+	@echo "  $(BLUE)make shell$(RESET)      - Open interactive shell in Docker container"
+	@echo "  $(BLUE)make clean$(RESET)      - Remove Docker image and Python cache"
 	@echo ""
 
-# Compile test project and run Vex
-run:
-	@docker image inspect vex > /dev/null 2>&1 || $(MAKE) build --no-print-directory
-	@printf "\n"
-	@printf "\033[?25l"
-	@printf "$(YELLOW)- $(RESET)Starting Docker container"
-	@docker run $(PLATFORM) --rm \
-		-v $(PWD):/app \
-		-w /app/test_cases \
-		vex /bin/bash -c "echo 'CONTAINER_READY'" > /dev/null 2>&1
-	@printf "\r$(GREEN)✓ $(RESET)Starting Docker container\n"
-	@printf "$(YELLOW)- $(RESET)Compiling test project"
-	@docker run $(PLATFORM) --rm \
-		-v $(PWD):/app \
-		-w /app/test_cases \
-		vex /bin/bash -c "make re > /tmp/build.log 2>&1 && echo 'BUILD_SUCCESS' || cat /tmp/build.log" > $(LOG_FILE) 2>&1; \
-	if grep -q "BUILD_SUCCESS" $(LOG_FILE); then \
-		printf "\r$(GREEN)✓ $(RESET)Compiling test project\n"; \
-		printf "\033[?25h"; \
-		docker run $(PLATFORM) -it --rm -v $(PWD):/app -w /app/test_cases vex ../srcs/vex.py ./leaky; \
-	else \
-		printf "\r$(RED)⨯ $(RESET)Compilation failed:\n"; \
-		cat $(LOG_FILE); \
-		printf "\033[?25h"; \
-		exit 1; \
-	fi
+# Install Vex globally
+install: build
+	@sudo -v
+	@printf "$(YELLOW)- $(RESET)Installing Vex to /usr/local/bin"
+	@chmod +x vex_cli > /dev/null 2>&1
+	@sudo cp vex_cli /usr/local/bin/vex > /dev/null 2>&1
+	@printf "\r$(GREEN)✓ $(RESET)Installing Vex to /usr/local/bin\n"
+	@echo "$(GREEN)✓$(RESET) Installation complete!"
+	@echo ""
+	@echo "$(YELLOW)-$(RESET) Run $(LIGHT_YELLOW)vex configure $(RESET) to set up your Mistral API key$(RESET)"
+	@echo ""
 
-# Force complete rebuild
-rebuild: clean build
+# Uninstall Vex
+uninstall:
+	@echo ""
+	@printf "$(YELLOW)- $(RESET)Removing Vex installation"
+	@sudo rm -f /usr/local/bin/vex > /dev/null 2>&1
+	@printf "\r$(GREEN)✓ $(RESET)Removing Vex installation\n"
+	@echo ""
 
 # Open interactive shell in container
 shell:
 	@docker image inspect vex > /dev/null 2>&1 || $(MAKE) build --no-print-directory
 	@docker run $(PLATFORM) -it --rm -v $(PWD):/app vex /bin/bash
 
-# Display last build logs
-logs:
-	@if [ -f $(LOG_FILE) ]; then \
-		echo "$(GREEN)Last build logs:$(RESET)"; \
-		echo ""; \
-		cat $(LOG_FILE); \
-	else \
-		echo "$(RED)No build logs found$(RESET)"; \
-		echo "Run 'make run' first to generate logs"; \
-	fi
-
-# Remove Docker image
+# Remove Docker image and Python cache
 clean:
-	@docker rmi vex 2>/dev/null || true
+	@echo ""
+	@printf "$(YELLOW)- $(RESET)Removing Docker image"
+	@docker rmi vex > /dev/null 2>&1 || true
+	@printf "\r$(GREEN)✓ $(RESET)Removing Docker image\n"
+	@printf "$(YELLOW)- $(RESET)Cleaning Python cache"
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@printf "\r$(GREEN)✓ $(RESET)Cleaning Python cache\n"
+	@echo ""
 
 # ============================================================================
 # Internal Commands
 # ============================================================================
 
-# Build Docker image (auto-triggered by run/shell if needed)
+# Build Docker image (auto-triggered by install/shell if needed)
 build:
-	@printf "$(YELLOW)- $(RESET)Building Docker image\n"
-	@docker build $(PLATFORM) -t vex .
-	@printf "$(GREEN)✓ $(RESET)Docker image ready\n"
-
-# Install Vex globally
-install: build
 	@echo ""
-	@printf "$(YELLOW)- $(RESET)Installing Vex globally\n"
-	@chmod +x vex_cli
-	@echo "$(YELLOW)- $(RESET)Installing to /usr/local/bin/vex"
-	@sudo cp vex_cli /usr/local/bin/vex
-	@printf "$(GREEN)✓ $(RESET)Vex installed successfully!\n"
-	@echo ""
-	@echo "$(PINK)1. Configure your API key$(RESET)"
-	@echo "$(LIGHT_PINK)vex configure$(RESET)"
-	@echo ""
-	@echo "$(PINK)2. Run Vex from anywhere:$(RESET)"
-	@echo "$(LIGHT_PINK)vex ./my_program$(RESET)"
-	@echo ""
-
-# Uninstall Vex
-uninstall:
-	@printf "$(YELLOW)- $(RESET)Removing Vex installation\n"
-	@sudo rm -f /usr/local/bin/vex
-	@printf "$(GREEN)✓ $(RESET)Vex uninstalled\n"
+	@printf "\033[?25l"; \
+	YELLOW='\033[38;5;214m'; \
+	GREEN='\033[38;5;49m'; \
+	WHITE='\033[97m'; \
+	DARK_GRAY='\033[38;5;238m'; \
+	RESET='\033[0m'; \
+	(pos=0; seconds=0; iterations=0; while true; do \
+		printf "\r$${YELLOW}- $${RESET}$${WHITE}Building Docker image $${RESET}"; \
+		for i in 0 1 2 3; do \
+			if [ $$i -eq $$pos ]; then \
+				printf "$${GREEN}--$${RESET}"; \
+			else \
+				printf "$${WHITE}--$${RESET}"; \
+			fi; \
+		done; \
+		printf " $${DARK_GRAY}$${seconds}s$${RESET}"; \
+		pos=$$((pos + 1)); \
+		if [ $$pos -ge 4 ]; then pos=0; fi; \
+		iterations=$$((iterations + 1)); \
+		if [ $$((iterations % 10)) -eq 0 ]; then seconds=$$((seconds + 1)); fi; \
+		sleep 0.1; \
+	done) & \
+	SPINNER_PID=$$!; \
+	docker build $(PLATFORM) -t vex . > /dev/null 2>&1; \
+	BUILD_STATUS=$$?; \
+	kill $$SPINNER_PID 2>/dev/null; wait $$SPINNER_PID 2>/dev/null; \
+	printf "\r\033[K"; \
+	printf "\033[?25h"; \
+	GREEN='\033[38;5;49m'; \
+	RESET='\033[0m'; \
+	RED='\033[38;5;196m'; \
+	if [ $$BUILD_STATUS -eq 0 ]; then \
+		printf "$${GREEN}✓ $${RESET}Building Docker image\n"; \
+	else \
+		printf "$${RED}✗ $${RESET}Building Docker image failed\n"; \
+		exit 1; \
+	fi
