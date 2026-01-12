@@ -530,12 +530,6 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
 
         found, root_key, found_segment, entry, operation = find_segment_in_line(line, tracking)
 
-        # Ajoute ce print :
-        print(f"[DEBUG] Line: {line.strip()}")
-        print(f"        Found: {found}, Operation: {operation}, Segment: {found_segment}")
-        print(f"        Tracking: {list(tracking.keys())}")
-        print()
-
         if not found:
             line_index += 1
             continue
