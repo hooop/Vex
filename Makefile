@@ -55,6 +55,7 @@ install: build
 # Uninstall Vex
 uninstall:
 	@echo ""
+	@sudo -v  # Demande le password ici
 	@printf "$(YELLOW)- $(RESET)Removing Vex installation"
 	@sudo rm -f /usr/local/bin/vex > /dev/null 2>&1
 	@printf "\r$(GREEN)✓ $(RESET)Removing Vex installation\n"
