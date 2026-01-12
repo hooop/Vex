@@ -1,168 +1,123 @@
-![Vex Logo](./assets/logo.svg)
+# VEX - Valgrind Error eXplorer
 
-# Valgrind Error eXplorer
+VEX is a CLI tool that combines deterministic memory leak analysis with Mistral AI to provide intelligent, guided debugging assistance for C programs.
 
-## Context
+## Why VEX?
 
-Memory leak analysis in C is a domain where Large Language Models (LLMs) perform poorly when used naively.  
-LLMs do not simulate memory: they describe graphs textually, propagate early mistakes, and often fail on non-trivial cases involving:
+Memory leak analysis is a domain where LLMs perform poorly when used naively. They don't simulate memory, propagate early mistakes, and often fail on non-trivial cases involving aliasing, embedded allocations, or container lifetimes.
 
-- aliasing,
-- embedded allocations,
-- container lifetimes,
-- order-dependent frees.
+**VEX takes a different approach:** Instead of asking an LLM to find the root cause, it separates the problem into two phases:
 
-This project explores a different approach.
+1. **Deterministic root cause identification** - A Python algorithm tracks memory paths through your code, following Valgrind's execution trace line by line
+2. **LLM-assisted explanation** - Mistral AI (mistral-small-latest) explains the leak, justifies the root cause, and suggests a minimal fix
 
----
+The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/aa37d80d-7bf1-467a-913e-2f77aaad8b09" controls autoplay loop muted></video>
-</p>
+## Installation
 
+1. **Clone the repository**
+```bash
+   git clone <repository-url>
+   cd vex
+```
 
-## Core Idea
+2. **Install VEX**
+```bash
+   make install
+```
+   You'll be prompted for your sudo password to install the tool system-wide.
 
-Instead of asking a language model to find the root cause of a memory leak, this project separates the problem into two distinct phases:
+3. **Configure your API key**
+```bash
+   vex configure
+```
+   Enter your Mistral AI API key when prompted.
 
-1. **Deterministic root cause identification**  
-2. **LLM-assisted explanation and fix suggestion**
+## Usage
 
-The LLM is never responsible for discovering the leak.
+### Basic Command
+```bash
+vex <executable> [arguments]
+```
 
----
+VEX will:
+1. Run your program through Valgrind
+2. Analyze memory paths deterministically
+3. Provide AI-powered explanations and fix suggestions
 
-## Deterministic Memory Path Tracking
+### Try the Examples
+```bash
+cd examples/Type_1
+make
+vex ./leak_type_1
+```
 
-Given:
+The `examples` directory contains three types of memory leak scenarios to help you understand how VEX works.
 
-- a Valgrind report pointing to a specific allocation,
-- the corresponding call stack,
-- the source code of the involved functions,
+## How It Works
 
-the tool tracks **only one allocation at a time**, following its access paths through the code in execution order.  
+### Deterministic Analysis
 
-The algorithm maintains a structure describing:
+Given a Valgrind report, VEX tracks one allocation at a time through your code:
 
-- which variables can still reach the allocation,
-- through which access paths,
-- and how these paths disappear over time.
+- Maintains **roots** (variables that can reach the allocation)
+- Tracks **access paths** (e.g., `node->data`)
+- Updates paths when encountering aliases, reassignments, frees, or scope exits
 
-The analysis proceeds **line by line**, strictly following the execution trace implied by Valgrind.
+When no valid path remains and the allocation wasn't freed, the root cause is identified.
 
-- No global reasoning  
-- No speculative cleanup functions  
-- No attempt to “understand the whole program”
+### Leak Classification
 
----
+VEX categorizes leaks into three concrete types:
 
-<img src="assets/leak.png" alt="Aperçu Valgrind Error eXplorer" width="800">
+1. **Missing free** - Allocation never freed before paths disappear
+2. **Path loss by reassignment** - Last access path overwritten or set to NULL
+3. **Container freed first** - Structure freed while owning embedded allocations
 
-## Tracking Model
+Each points to the precise line of code responsible.
 
-Each reachable access path is represented by a **root**:
+### LLM Role
 
-- A root is a variable through which the allocation can be reached.  
-- Each root tracks:  
-  - the full access path (e.g. `node->data`)  
-  - all intermediate segments (`node`, `node->data`)  
-  - an optional origin, used to resolve aliases  
+After deterministic analysis, Mistral AI receives:
+- The Valgrind report
+- Relevant source code
+- The identified root cause
+- The leak classification
 
-The algorithm updates this structure when encountering:
-
-- alias creation  
-- reassignment  
-- `free()` calls  
-- scope exits  
-- returns across the call stack  
-
-When no valid access path remains and the allocation was not freed, a **root cause** is identified.
-
----
-
-## Leak Categories
-
-The algorithm classifies leaks into **three concrete types**:
-
-1. **Missing free**  
-   The allocation is never freed before all access paths disappear.
-
-2. **Path loss by reassignment**  
-   The last remaining access path is overwritten or set to `NULL`.
-
-3. **Container freed before embedded data**  
-   A structure is freed while still owning embedded allocations.
-
-Each category points to a precise line of code responsible for the leak.
-
----
-
-## Role of the LLM
-
-The LLM is used **after the deterministic phase**.  
-
-Input to the model:
-
-- Valgrind report  
-- Relevant source code  
-- Identified root cause  
-- Classified leak type  
-
-The model is asked to:
-
-- explain the leak step by step  
-- justify why the root cause is correct  
-- propose a minimal and correct fix  
-- explain relevant best practices to avoid recurrence
-
-The LLM **never guesses ownership or simulates memory**.
-
----
+It then explains the leak step-by-step and proposes a correct fix.
 
 ## Design Philosophy
 
-This project intentionally avoids:
+**What VEX avoids:**
+- Global program analysis
+- Heuristics or "smart" guessing
+- Overfitting to simple examples
 
-- global program analysis  
-- heuristics  
-- “smart” guessing  
-- overfitting to simple examples  
+**What VEX focuses on:**
+- Constrained reasoning
+- Explicit assumptions
+- Trustworthy results within supported scope
 
-Instead, it focuses on:
+**Current limitations:**
+- No loop handling
+- Single execution path only
+- One allocation tracked at a time
+- Conditions not handled
+- External free functions not tracked
 
-- constrained reasoning  
-- explicit assumptions  
-- failure modes that are easy to detect and explain  
-- developer trust  
-
-When the algorithm cannot conclude, it fails explicitly.
-
----
-
-## Limitations
-
-- No loop handling (by design)  
-- Single execution path only  
-- One allocation tracked at a time  
-- Relies on Valgrind’s accuracy  
-
-These limitations are accepted trade-offs to guarantee correctness within the supported scope.
-
----
+These features are on the TODO list.
 
 ## Why This Matters
 
-This project explores how deterministic analysis and language models can **complement each other**, by assigning each tool a role aligned with its actual strengths:
+This project explores how deterministic analysis and LLMs can complement each other by assigning each tool a role aligned with its strengths:
 
-- Deterministic analysis handles root cause identification with **zero false positives**
-- LLMs are constrained to tasks they excel at: explanation, pedagogy, and fix suggestions
-- The combination produces results that are **more trustworthy** than end-to-end LLM solutions
+- **Deterministic analysis**: Root cause identification with zero false positives
+- **LLMs**: Explanation, pedagogy, and fix suggestions
 
-The goal is not to replace Valgrind, but to make its output **actionable** for developers learning C.
+The goal isn't to replace Valgrind, but to make its output actionable for developers learning C.
 
----
+## Requirements
 
-## Status
-
-- The deterministic analysis is functional and has been tested on **non-trivial aliasing and container lifetime scenarios**.  
-- The LLM integration focuses on **explanation quality and fix correctness**, not detection.
+- Docker
+- Mistral AI API key
+- Python 3.x
