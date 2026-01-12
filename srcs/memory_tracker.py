@@ -410,6 +410,7 @@ def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list
 
     for func in extracted_functions:
         lines = []
+        valgrind_line = func['line']  # La ligne mentionnée par Valgrind
 
         # Parse the numbered code lines
         for code_line in func['code'].split('\n'):
@@ -418,15 +419,23 @@ def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list
 
             # Remove line number prefix "23: " → "actual code"
             if ':' in code_line:
-                # Find first colon and take everything after
+                # Extract line number
                 colon_pos = code_line.index(':')
+                line_num_str = code_line[:colon_pos].strip()
+                
+                # Skip lines before Valgrind line
+                if line_num_str.isdigit():
+                    line_num = int(line_num_str)
+                    if line_num < valgrind_line:
+                        continue  # Skip this line
+                
                 actual_code = code_line[colon_pos + 1:]
                 lines.append(actual_code)
 
         result.append({
             'function': func['function'],
             'lines': lines,
-            'start_line': func['line'],
+            'start_line': valgrind_line,
             'file': func.get('file', 'unknown')
         })
 

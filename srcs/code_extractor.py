@@ -46,9 +46,9 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
     if end_line is None:
         return None
 
-    # Extract from Valgrind line to end of function
+    # Extract from start to end of function
     result = []
-    for i in range(line_number - 1, end_line + 1):  # line_number - 1 because index is 0-based
+    for i in range(start_line, end_line + 1):
         line_num = i + 1
         result.append(f"{line_num}: {lines[i]}")
     return ''.join(result)
