@@ -17,25 +17,35 @@ The LLM never guesses ownership or simulates memory. It only explains what the d
 
 <video src="https://github.com/user-attachments/assets/a5e54af0-27f8-45a6-8c25-920ca0973407" controls></video>
 
+## Requirements
+
+Before installing VEX, make sure you have:
+
+- Docker
+- Python 3.x
+- A Mistral AI API key
+
+**Note:** For the best visual experience, use a terminal with a dark background.
+
 ## Installation
 
 1. **Clone the repository**
 ```bash
-   git clone <repository-url>
-   cd vex
+git clone <repository-url>
+cd vex
 ```
 
 2. **Install VEX**
 ```bash
-   make install
+make install
 ```
-   You'll be prompted for your sudo password to install the tool system-wide.
+You'll be prompted for your sudo password to install the tool system-wide.
 
 3. **Configure your API key**
 ```bash
-   vex configure
+vex configure
 ```
-   Enter your Mistral AI API key when prompted.
+Enter your Mistral AI API key when prompted.
 
 ## Usage
 
@@ -119,9 +129,3 @@ This project explores how deterministic analysis and LLMs can complement each ot
 - **LLMs**: Explanation, pedagogy, and fix suggestions
 
 The goal isn't to replace Valgrind, but to make its output actionable for developers learning C.
-
-## Requirements
-
-- Docker
-- Mistral AI API key
-- Python 3.x
