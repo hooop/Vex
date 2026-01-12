@@ -49,7 +49,7 @@ VEX will:
 ```bash
 cd examples/Type_1
 make
-vex ./leak_type_1
+vex ./leaky
 ```
 
 The `examples` directory contains three types of memory leak scenarios to help you understand how VEX works.
