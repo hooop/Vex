@@ -223,7 +223,7 @@ JSON FORMAT (only, no text around)
     "context_before_code": "<line just before root cause or empty>",
     "context_after_code": "<line just after root cause or empty>"
   }},
-  "resolution_principle": "In <function>(), <action to do> before/after <existing code line>",
+  "resolution_principle": "In <function>(), <action to do> before/after <existing code line> or before function ends",
   "resolution_code": "<exact C code to insert>",
   "explanations": "<pedagogical explanation of why this solution works> + <best practice rule>"
 }}
