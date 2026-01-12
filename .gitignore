@@ -18,4 +18,4 @@ iteration_prompt.md
 test_cases/leaky
 test_cases/*/leaky
 *.out
-*.exe
+*.exeexamples/README.md
