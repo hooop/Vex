@@ -49,7 +49,7 @@ install: build
 	@printf "\r$(GREEN)✓ $(RESET)Installing Vex to /usr/local/bin\n"
 	@echo "$(GREEN)✓$(RESET) Installation complete!"
 	@echo ""
-	@echo "$(YELLOW)-$(RESET) Run $(LIGHT_YELLOW)vex configure $(RESET) to set up your Mistral API key$(RESET)"
+	@echo "$(YELLOW)-$(RESET) Run $(LIGHT_YELLOW)vex configure$(RESET) to set up your Mistral API key$(RESET)"
 	@echo ""
 
 # Uninstall Vex
