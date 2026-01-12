@@ -15,6 +15,8 @@ Memory leak analysis is a domain where LLMs perform poorly when used naively. Th
 
 The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
+<video src="https://github.com/user-attachments/assets/a5e54af0-27f8-45a6-8c25-920ca0973407" controls></video>
+
 ## Installation
 
 1. **Clone the repository**
