@@ -8,12 +8,6 @@ typedef struct s_node
     struct s_node   *next;
 } t_node;
 
-typedef struct s_block
-{
-    void            *payload;
-    struct s_block  *ref;
-} t_block;
-
 t_node *create_node(const char *str)
 {
     t_node *n = malloc(sizeof(t_node));
@@ -93,42 +87,10 @@ void level_1(void)
     free(node);
 }
 
-t_block *alloc_block(size_t size)
-{
-    t_block *b = malloc(sizeof(t_block));
-    b->payload = malloc(size);
-
-    b->ref = NULL;
-
-    return (b);
-}
-
-void consume(t_block *x)
-{
-    free(x->payload);
-    free(x);
-}
-
-void example(void)
-{
-    t_block *a = alloc_block(32);
-    t_block *b = alloc_block(64);
-    t_block *c = alloc_block(128);
-
-    a->ref = b;
-    b->ref = c;
-
-    t_block *saved = c;
-
-    consume(b);
-
-    free(a->payload);
-    free(a);
-}
 
 int main(void)
 {
-    example();
+    level_1();
     process_nodes();
 
     return (0);

@@ -6,25 +6,22 @@ else
     PLATFORM :=
 endif
 
+# Detect if we're inside Docker
+IN_DOCKER := $(shell [ -f /.dockerenv ] && echo "yes" || echo "no")
+
 CC = gcc
 CFLAGS = -g
 
 # Variables
-SRC = leaky_2.c
-TARGET = leaky_2
-
-# Detect if running inside Docker
-IN_DOCKER := $(shell test -f /.dockerenv && echo 1 || echo 0)
+SRC = leaky.c
+TARGET = leaky
 
 all: $(TARGET)
 
-ifeq ($(IN_DOCKER),1)
-# Inside Docker - compile directly
 $(TARGET): $(SRC)
+ifeq ($(IN_DOCKER),yes)
 	@$(CC) $(CFLAGS) $(SRC) -o $(TARGET)
 else
-# Outside Docker - use container
-$(TARGET): $(SRC)
 	@docker run $(PLATFORM) --rm -v $(PWD):/work -w /work vex $(CC) $(CFLAGS) $(SRC) -o $(TARGET)
 endif
 
