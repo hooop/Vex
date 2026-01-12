@@ -1,3 +1,5 @@
+![Vex Logo](./assets/logo.svg)
+
 # VEX - Valgrind Error eXplorer
 
 VEX is a CLI tool that combines deterministic memory leak analysis with Mistral AI to provide intelligent, guided debugging assistance for C programs.
