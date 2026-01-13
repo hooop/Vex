@@ -15,6 +15,8 @@ Memory leak analysis is a domain where LLMs perform poorly when used naively. Th
 
 The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
+https://github.com/user-attachments/assets/d05d8701-0ba2-4842-b3a7-93aeb5c4a723
+
 ## Requirements
 
 Before installing VEX, make sure you have:
