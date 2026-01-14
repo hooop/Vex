@@ -205,10 +205,10 @@ JSON FORMAT (only, no text around)
   "leak_type": {root_cause['type'] if root_cause else 1},
   "diagnosis": "<clear explanation of the problem in 2-3 sentences>",
   "reasoning": [
-    "<step: pedagogical explanation>",
-    "<step: what happens to the memory>",
-    "<step: why this is a problem>",
-    "<add as many steps as necessary>"
+    "Transform each step from 'Memory path' above into a clear, factual sentence",
+    "Use real variable names, line numbers, and function names from the steps",
+    "Example: 'ALLOC: ptr in func()' becomes 'malloc() allocates memory for ptr in func()'",
+    "Keep it factual and descriptive, not pedagogical"
   ],
   "real_cause": {{
     "file": "{root_cause.get('file', 'unknown') if root_cause else 'unknown'}",
