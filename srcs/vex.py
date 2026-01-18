@@ -21,6 +21,7 @@ from display import display_analysis, display_leak_menu
 from memory_tracker import find_root_cause, convert_extracted_code
 from menu import interactive_menu
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
+from mistral_animation import play_mistral_animation
 from type_defs import ParsedValgrindReport, ValgrindError, BuildResult
 from valgrind_parser import parse_valgrind_report
 from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError as ValgrindRunnerError
@@ -307,6 +308,9 @@ def main() -> int:
 
     try:
         clear_screen()
+
+        # Play Mistral animation (2 seconds)
+        play_mistral_animation(duration=3.5)
 
         # Hide real cursor
         print("\033[?25l", end="", flush=True)

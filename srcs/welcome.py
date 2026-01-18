@@ -65,8 +65,8 @@ def display_logo() -> None:
     # Position cursor after logo
     print(f"\033[{len(logo_lines) + 2};1H")
 
-    print("Valgrind Error Explorer")
-    print(GREEN + "Mistral AI internship project" + RESET)
+    print(GREEN + "Valgrind Error Explorer" + RESET)
+    # print(GREEN + "Mistral AI internship project" + RESET)
     print()
 
 
