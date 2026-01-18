@@ -17,7 +17,6 @@ The LLM never guesses ownership or simulates memory. It only explains what the d
 
 https://github.com/user-attachments/assets/d05d8701-0ba2-4842-b3a7-93aeb5c4a723
 
-![Vex output](assets/vex_analysis.png)
 
 ## Requirements
 
@@ -69,6 +68,8 @@ vex ./leaky
 ```
 
 The `examples` directory contains three types of memory leak scenarios to help you understand how VEX works.
+
+![Vex output](assets/vex_analysis.png)
 
 ## How It Works
 
