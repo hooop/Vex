@@ -158,7 +158,7 @@ def play_mistral_animation(duration: float = 2.0) -> None:
         print("\033[?25l", end="")
 
         # Display subtitle
-        print(RED + "Mistral internship project." + RESET)
+        print(RED + "Mistral AI Internship Application." + RESET)
 
         frame += 1
         time.sleep(SPEED)
