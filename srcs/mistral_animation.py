@@ -16,13 +16,13 @@ import random
 # =========================
 # PARAMETERS
 # =========================
-WIDTH = 26
+WIDTH = 18
 HEIGHT = 14
 SPEED = 0.05           # Time between each frame (seconds)
 SPAWN_DELAY = 2        # Delay between wave spawns (frames)
-CHAR_ON = "∎"
-CHAR_OFF = "∎"
-CHAR_LOGO = "█"
+CHAR_ON = "∎∎"
+CHAR_OFF = "∎∎"
+CHAR_LOGO = "██"
 
 # Colors
 RESET = "\033[0m"
