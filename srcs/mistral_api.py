@@ -8,23 +8,30 @@ import os
 import json
 from typing import Optional
 
-from dotenv import load_dotenv
-from mistralai import Mistral
-
 from type_defs import ValgrindError, RootCauseInfo, MistralAnalysis
 
-# Load environment variables
-load_dotenv()
+# Lazy-loaded client (mistralai import takes ~4s on ARM/Docker)
+_client = None
 
-# Initialize Mistral client
-API_KEY = os.environ.get("MISTRAL_API_KEY")
-if not API_KEY:
-    raise ValueError(
-    "MISTRAL_API_KEY is not set.\n"
-    "Create a .env file with: MISTRAL_API_KEY=your_key"
-    )
 
-client = Mistral(api_key=API_KEY)
+def _get_client():
+    """Return Mistral client, initializing on first call."""
+    global _client
+    if _client is not None:
+        return _client
+
+    from dotenv import load_dotenv
+    from mistralai import Mistral
+
+    load_dotenv()
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "MISTRAL_API_KEY is not set.\n"
+            "Create a .env file with: MISTRAL_API_KEY=your_key"
+        )
+    _client = Mistral(api_key=api_key)
+    return _client
 
 
 def _clean_json_response(response: str) -> str:
@@ -315,7 +322,7 @@ def _call_mistral_api(prompt: str) -> str:
         Exception: If API call fails.
     """
     try:
-        response = client.chat.complete(
+        response = _get_client().chat.complete(
             model="mistral-small-latest",
             messages=[
                 {

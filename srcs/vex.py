@@ -11,6 +11,7 @@ Usage: ./vex.py <executable> [args...]
 """
 
 import sys
+import threading
 import time
 from typing import Optional
 
@@ -460,8 +461,11 @@ def main() -> int:
 
         # Hide real cursor
         print("\033[?25l", end="", flush=True)
-        time.sleep(0.2)
+        # time.sleep(0.2)
         display_logo()
+
+        # Pre-import mistralai in background (heavy import: ~4s on ARM/Docker)
+        threading.Thread(target=lambda: __import__('mistralai'), daemon=True).start()
 
         # Valgrind analysis, returns dictionary with all leaks
         parsed_data = _run_valgrind_analysis(executable, program_args)
@@ -506,6 +510,9 @@ def main() -> int:
 
                 parsed_errors, initial_leak_count = result
                 need_reanalysis = False
+
+            # Hide cursor during analysis steps
+            print("\033[?25l", end="", flush=True)
 
             # Extract source code
             _extract_source_code(parsed_errors)

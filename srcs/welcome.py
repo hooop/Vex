@@ -29,44 +29,57 @@ def clear_screen() -> None:
 
 
 def display_logo() -> None:
-    """Display the Vex ASCII logo with pixel-by-pixel animation."""
+    """Display the Vex ASCII logo with cascading wave animation."""
 
     logo_lines = [
         "██  ██  ██████  ██  ██",
-        "██  ██  ████      ██",
-        "  ██    ██████  ██  ██"
+        "██▌ ██  ██▄▄      ██",
+        "  ████  ██████  ██  ██"
     ]
 
-    # Step 1 : Parse pixels
-    pixels = []
-    for line_idx, line in enumerate(logo_lines):
-        col = 0
-        while col < len(line):
-            if col < len(line) and line[col] == '█':
-                pixels.append((line_idx, col))
-                col += 2  # Skip second block character
-            else:
-                col += 1
+    # Animation parameters
+    START_ROW = 1
+    LINE_STAGGER = 4      # Characters delay before next line starts
+    STEP_DELAY = 0.025    # Seconds between each animation step
 
-    # Step 2 : Shuffle
-    random.shuffle(pixels)
+    # Parse non-space characters per line: list of (col, char)
+    line_chars = []
+    for line in logo_lines:
+        chars = [(col, ch) for col, ch in enumerate(line) if ch != ' ']
+        line_chars.append(chars)
 
-    # Step 3 : Display pixel by pixel
-    for line_idx, col in pixels:
-        
-        # Display pink cursor effect
-        print(f"\033[{line_idx + 2};{col + 1}H{LIGHT_PINK}██{RESET}", end="", flush=True)
-        time.sleep(0.035)
+    max_len = max(len(chars) for chars in line_chars)
+    total_steps = max_len + LINE_STAGGER * (len(logo_lines) - 1)
 
-        # Display final green pixel
-        print(f"\033[{line_idx + 2};{col + 1}H{DARK_GREEN}██{RESET}", end="", flush=True)
-        time.sleep(0.001)
+    for step in range(total_steps):
+        for line_idx, chars in enumerate(line_chars):
+            char_idx = step - line_idx * LINE_STAGGER
+
+            if char_idx < 0 or char_idx >= len(chars):
+                continue
+
+            col, ch = chars[char_idx]
+
+            # Pink cursor on leading edge
+            print(f"\033[{START_ROW + line_idx};{col + 1}H{LIGHT_PINK}{ch}{RESET}", end="", flush=True)
+
+            # Turn previous char green
+            if char_idx > 0:
+                prev_col, prev_ch = chars[char_idx - 1]
+                print(f"\033[{START_ROW + line_idx};{prev_col + 1}H{DARK_GREEN}{prev_ch}{RESET}", end="", flush=True)
+
+        time.sleep(STEP_DELAY)
+
+    # Final: turn last char of each line green
+    for line_idx, chars in enumerate(line_chars):
+        if chars:
+            col, ch = chars[-1]
+            print(f"\033[{START_ROW + line_idx};{col + 1}H{DARK_GREEN}{ch}{RESET}", end="", flush=True)
 
     # Position cursor after logo
-    print(f"\033[{len(logo_lines) + 2};1H")
+    print(f"\033[{len(logo_lines) + START_ROW};1H")
 
-    print(GREEN + "Valgrind Error Explorer" + RESET)
-    # print(GREEN + "Mistral AI internship project" + RESET)
+    print(GREEN + "Valgrind Error Xplorer" + RESET)
     print()
 
 
