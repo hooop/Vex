@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CONFIG_FILE="$HOME/.vexrc"
+OS="$(uname -s)"
 
 # ANSI color codes
 GREEN="\033[38;5;49m"
@@ -13,15 +14,15 @@ RESET="\033[0m"
 if [ "$1" = "configure" ]; then
     echo ""
     read -p "$(echo -e "${YELLOW} - ${RESET}Enter your Mistral API key: ")" api_key
-    
+
     if [ -z "$api_key" ]; then
         echo -e " ${RED}×${RESET} Error: API key cannot be empty"
         exit 1
     fi
-    
+
     echo "MISTRAL_API_KEY=$api_key" > "$CONFIG_FILE"
     chmod 600 "$CONFIG_FILE"
-    
+
     echo ""
     echo -e "${GREEN} ✓ ${RESET} Configuration saved to $CONFIG_FILE"
     echo -e "${GREEN} ✓ ${RESET} You can now use vex from anywhere!"
@@ -65,7 +66,7 @@ CURRENT_DIR=$(pwd)
 find_env_file() {
     local dir="$1"
     local levels=0
-    
+
     while [ "$levels" -lt 5 ]; do
         if [ -f "$dir/.env" ]; then
             if grep -q "MISTRAL_API_KEY" "$dir/.env" 2>/dev/null; then
@@ -73,7 +74,7 @@ find_env_file() {
                 return 0
             fi
         fi
-        
+
         local parent=$(dirname "$dir")
         if [ "$parent" = "$dir" ]; then
             break
@@ -81,34 +82,70 @@ find_env_file() {
         dir="$parent"
         levels=$((levels + 1))
     done
-    
+
     return 1
 }
 
-# Priority 1: Check for global config file
-if [ -f "$CONFIG_FILE" ]; then
-    ENV_SOURCE="$CONFIG_FILE"
-# Priority 2: Check for local .env file
-else
-    ENV_FILE=$(find_env_file "$CURRENT_DIR")
-    if [ -n "$ENV_FILE" ]; then
-        ENV_SOURCE="$ENV_FILE"
+# Load API key from config
+load_api_key() {
+    if [ -f "$CONFIG_FILE" ]; then
+        export $(grep -v '^#' "$CONFIG_FILE" | xargs)
     else
-        echo "Error: No Mistral API key configured"
-        echo ""
-        echo "Please run: vex configure"
-        echo ""
-        echo "Or create a .env file with:"
-        echo "  MISTRAL_API_KEY=your_api_key"
-        echo ""
+        local env_file
+        env_file=$(find_env_file "$CURRENT_DIR")
+        if [ -n "$env_file" ]; then
+            export $(grep -v '^#' "$env_file" | grep 'MISTRAL_API_KEY' | xargs)
+        else
+            echo "Error: No Mistral API key configured"
+            echo ""
+            echo "Please run: vex configure"
+            echo ""
+            echo "Or create a .env file with:"
+            echo "  MISTRAL_API_KEY=your_api_key"
+            echo ""
+            exit 1
+        fi
+    fi
+}
+
+if [ "$OS" = "Linux" ]; then
+    # ── Linux: run Python directly ──
+    VEX_SRCS="$HOME/.local/share/vex/srcs"
+
+    if [ ! -f "$VEX_SRCS/vex.py" ]; then
+        echo "Error: Vex sources not found at $VEX_SRCS"
+        echo "Please run 'make install' from the Vex repository"
         exit 1
     fi
-fi
 
-# Run Vex in Docker container
-docker run -it --rm \
-    --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
-    --env-file "$ENV_SOURCE" \
-    -v "$CURRENT_DIR:/work" \
-    -w /work \
-    vex /app/srcs/vex.py "$EXECUTABLE" "${ARGS[@]}" 2>/dev/null
+    load_api_key
+    python3 "$VEX_SRCS/vex.py" "$EXECUTABLE" "${ARGS[@]}"
+else
+    # ── macOS: run via Docker ──
+
+    # Determine env source for --env-file
+    if [ -f "$CONFIG_FILE" ]; then
+        ENV_SOURCE="$CONFIG_FILE"
+    else
+        ENV_FILE=$(find_env_file "$CURRENT_DIR")
+        if [ -n "$ENV_FILE" ]; then
+            ENV_SOURCE="$ENV_FILE"
+        else
+            echo "Error: No Mistral API key configured"
+            echo ""
+            echo "Please run: vex configure"
+            echo ""
+            echo "Or create a .env file with:"
+            echo "  MISTRAL_API_KEY=your_api_key"
+            echo ""
+            exit 1
+        fi
+    fi
+
+    docker run -it --rm \
+        --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
+        --env-file "$ENV_SOURCE" \
+        -v "$CURRENT_DIR:/work" \
+        -w /work \
+        vex /app/srcs/vex.py "$EXECUTABLE" "${ARGS[@]}" 2>/dev/null
+fi

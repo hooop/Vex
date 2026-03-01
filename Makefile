@@ -9,6 +9,9 @@
 # Configuration
 # ============================================================================
 
+# Detect OS
+OS := $(shell uname -s)
+
 # Auto-detect architecture (ARM64 -> linux/amd64 for Valgrind compatibility)
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M),arm64)
@@ -22,7 +25,12 @@ YELLOW := \033[38;5;214m
 LIGHT_YELLOW := \033[38;5;230m
 GREEN  := \033[38;5;49m
 BLUE   := \033[38;5;211m
+RED    := \033[38;5;196m
 RESET  := \033[0m
+
+# Linux install paths
+VEX_BIN   := $(HOME)/.local/bin/vex
+VEX_DIR   := $(HOME)/.local/share/vex
 
 # ============================================================================
 # Public Commands
@@ -34,13 +42,60 @@ all: help
 # Display available commands
 help:
 	@echo "Available commands:"
-	@echo "  $(BLUE)make install$(RESET)    - Install Vex globally (requires sudo)"
-	@echo "  $(BLUE)make uninstall$(RESET)  - Remove Vex installation (requires sudo)"
+	@echo "  $(BLUE)make install$(RESET)    - Install Vex globally"
+	@echo "  $(BLUE)make uninstall$(RESET)  - Remove Vex installation"
+ifeq ($(OS),Darwin)
 	@echo "  $(BLUE)make shell$(RESET)      - Open interactive shell in Docker container"
 	@echo "  $(BLUE)make clean$(RESET)      - Remove Docker image and Python cache"
+endif
 	@echo ""
 
-# Install Vex globally
+# ============================================================================
+# Install
+# ============================================================================
+
+ifeq ($(OS),Linux)
+install: check-deps
+	@echo ""
+	@printf "$(YELLOW)- $(RESET)Installing Vex sources to $(VEX_DIR)/srcs/"
+	@mkdir -p $(VEX_DIR)/srcs
+	@cp srcs/*.py $(VEX_DIR)/srcs/
+	@cp requirements.txt $(VEX_DIR)/
+	@printf "\r$(GREEN)✓ $(RESET)Installing Vex sources to $(VEX_DIR)/srcs/\n"
+	@printf "$(YELLOW)- $(RESET)Installing Python dependencies"
+	@pip3 install --user -r requirements.txt > /dev/null 2>&1
+	@printf "\r$(GREEN)✓ $(RESET)Installing Python dependencies\n"
+	@printf "$(YELLOW)- $(RESET)Installing Vex to $(VEX_BIN)"
+	@mkdir -p $(HOME)/.local/bin
+	@chmod +x vex_cli
+	@cp vex_cli $(VEX_BIN)
+	@printf "\r$(GREEN)✓ $(RESET)Installing Vex to $(VEX_BIN)\n"
+	@echo "$(GREEN)✓$(RESET) Installation complete!"
+	@echo ""
+	@echo "$(YELLOW)-$(RESET) Run $(LIGHT_YELLOW)vex configure$(RESET) to set up your Mistral API key$(RESET)"
+	@echo ""
+	@echo "$$PATH" | grep -q "$(HOME)/.local/bin" || \
+		(echo "$(YELLOW)⚠$(RESET)  ~/.local/bin is not in your PATH" && \
+		 echo "$(YELLOW)-$(RESET)  Add this to your shell config (~/.bashrc or ~/.zshrc):" && \
+		 echo "" && \
+		 echo "    $(LIGHT_YELLOW)export PATH=\"\$$HOME/.local/bin:\$$PATH\"$(RESET)" && \
+		 echo "")
+
+check-deps:
+	@missing=""; \
+	command -v valgrind > /dev/null 2>&1 || missing="$$missing valgrind"; \
+	command -v gdb > /dev/null 2>&1 || missing="$$missing gdb"; \
+	command -v python3 > /dev/null 2>&1 || missing="$$missing python3"; \
+	command -v pip3 > /dev/null 2>&1 || missing="$$missing pip3"; \
+	if [ -n "$$missing" ]; then \
+		echo ""; \
+		echo "$(RED)✗$(RESET) Missing dependencies:$$missing"; \
+		echo "$(YELLOW)-$(RESET) Install them with your package manager, e.g.:"; \
+		echo "    $(LIGHT_YELLOW)sudo apt install$$missing$(RESET)"; \
+		echo ""; \
+		exit 1; \
+	fi
+else
 install: build
 	@sudo -v
 	@printf "$(YELLOW)- $(RESET)Installing Vex to /usr/local/bin"
@@ -51,27 +106,51 @@ install: build
 	@echo ""
 	@echo "$(YELLOW)-$(RESET) Run $(LIGHT_YELLOW)vex configure$(RESET) to set up your Mistral API key$(RESET)"
 	@echo ""
+endif
 
-# Uninstall Vex
+# ============================================================================
+# Uninstall
+# ============================================================================
+
+ifeq ($(OS),Linux)
 uninstall:
 	@echo ""
-	@sudo -v  # Demande le password ici
+	@printf "$(YELLOW)- $(RESET)Removing Vex installation"
+	@rm -f $(VEX_BIN)
+	@rm -rf $(VEX_DIR)
+	@printf "\r$(GREEN)✓ $(RESET)Removing Vex installation\n"
+	@echo ""
+else
+uninstall:
+	@echo ""
+	@sudo -v
 	@printf "$(YELLOW)- $(RESET)Removing Vex installation"
 	@sudo rm -f /usr/local/bin/vex > /dev/null 2>&1
 	@printf "\r$(GREEN)✓ $(RESET)Removing Vex installation\n"
 	@echo ""
+endif
+
+# ============================================================================
+# Docker commands (macOS only)
+# ============================================================================
 
 # Open interactive shell in container
 shell:
+ifeq ($(OS),Darwin)
 	@docker image inspect vex > /dev/null 2>&1 || $(MAKE) build --no-print-directory
 	@docker run $(PLATFORM) -it --rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v $(PWD):/app vex /bin/bash
+else
+	@echo "$(YELLOW)-$(RESET) 'make shell' is only available on macOS (Docker mode)"
+endif
 
 # Remove Docker image and Python cache
 clean:
 	@echo ""
+ifeq ($(OS),Darwin)
 	@printf "$(YELLOW)- $(RESET)Removing Docker image"
 	@docker rmi vex > /dev/null 2>&1 || true
 	@printf "\r$(GREEN)✓ $(RESET)Removing Docker image\n"
+endif
 	@printf "$(YELLOW)- $(RESET)Cleaning Python cache"
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
@@ -82,7 +161,7 @@ clean:
 # Internal Commands
 # ============================================================================
 
-# Build Docker image (auto-triggered by install/shell if needed)
+# Build Docker image (auto-triggered by install/shell if needed, macOS only)
 build:
 	@echo ""
 	@printf "\033[?25l"; \
