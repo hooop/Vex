@@ -280,23 +280,26 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
         return ""
 
     # SPECIAL CASE: closing brace (Type 2 at end of function)
-    if cause.get('root_cause_code', '').strip() == '}':
+    # or end of program (Type 1, memory never freed)
+    root_code_str = cause.get('root_cause_code', '').strip()
+    if root_code_str in ('}', 'end of program'):
         target_function = cause.get('function')
         extracted_code = error.get('extracted_code', [])
-        
+
+        cleaned = None
         for frame in extracted_code:
             if frame.get('function') == target_function:
-                
+
                 # Take last line
                 code_lines = frame.get('code', '').strip().split('\n')
                 if code_lines:
                     last_line = code_lines[-1]  # "127: }"
-                    
+
                     # Extract number: "127: }" → 127
                     match = re.match(r'(\d+):', last_line)
                     if match:
                         line_num = int(match.group(1))
-                        
+
                         # Create cleaned directly
                         cleaned = {
                             'root_line': line_num,
@@ -306,14 +309,32 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
                             'context_before': None,
                             'context_after': None
                         }
-                        
+
                         # Skip _clean_and_sort_code_lines() and go to display
                         break
-        
-        if not cleaned:  # If not found, error
-            output = f"{GREEN}• Root Cause{RESET}\n\n"
-            output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
-            return output
+
+        if not cleaned:
+            # Function not in extracted_code (e.g. detected via GDB
+            # param_mapping).  Fall back to root_cause metadata.
+            rc = error.get('root_cause', {})
+            rc_line = rc.get('line')
+            if rc_line == '}':
+                # Use the line number from the trace step.
+                # The Mistral analysis stores the line in real_cause.
+                line_num = cause.get('line_number')
+                if line_num:
+                    cleaned = {
+                        'root_line': line_num,
+                        'root_code': '}',
+                        'root_comment': cause.get('root_cause_comment', ''),
+                        'contributing': [],
+                        'context_before': None,
+                        'context_after': None,
+                    }
+            if not cleaned:
+                output = f"{GREEN}• Root Cause{RESET}\n\n"
+                output += f"{LIGHT_YELLOW}Impossible de localiser le code source.{RESET}\n\n"
+                return output
     else:
         # NORMAL CASE: call _clean_and_sort_code_lines()
         source_file = cause.get('file', error.get('file', 'unknown'))

@@ -18,7 +18,11 @@ from builder import rebuild_project
 from code_extractor import extract_call_stack
 from colors import RESET, DARK_GREEN, RED
 from display import display_analysis, display_leak_menu
-from memory_tracker import find_root_cause, convert_extracted_code
+from gdb_tracer import trace_pointer, check_gdb_available
+from memory_tracker import (
+    find_root_cause, find_root_cause_from_trace,
+    convert_extracted_code, extract_left_side, is_malloc,
+)
 from menu import interactive_menu
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
 from mistral_animation import play_mistral_animation
@@ -163,34 +167,176 @@ def _extract_source_code(parsed_errors: list[ValgrindError]) -> None:
         stop_spinner(t, "Extracting source code")
 
 
-def _find_root_causes(parsed_errors: list[ValgrindError]) -> None:
+def _find_root_causes(
+    parsed_errors: list[ValgrindError],
+    executable: str,
+) -> None:
     """
-    Find root cause for each leak using memory tracking algorithm.
+    Find root cause for each leak using GDB tracing or static analysis.
+
+    Attempts GDB-based dynamic tracing first for accurate results through
+    loops, branches, and indirect frees.  Falls back to static analysis
+    if GDB is unavailable or tracing fails.
 
     Args:
         parsed_errors: List of parsed Valgrind errors with extracted code.
+        executable:    Path to the compiled binary.
     """
+
+    gdb_available = check_gdb_available()
 
     t = start_spinner("Analyzing memory paths")
 
     for error in parsed_errors:
-        if error.get('extracted_code'):
-            try:
-                converted = convert_extracted_code(error['extracted_code'])
-                root_cause = find_root_cause(converted)
-                if root_cause:
-                    error['root_cause'] = {
-                        'type': root_cause["leak_type"],
-                        'line': root_cause["line"],
-                        'function': root_cause["function"],
-                        'file': root_cause["file"],
-                        'steps': root_cause["steps"]
-                    }
-            except Exception as e:
-                # If analysis fails, continue without root cause
-                error['root_cause'] = None
+        if not error.get('extracted_code'):
+            continue
+
+        root_cause = None
+
+        # --- Try GDB dynamic tracing first -------------------------------
+        if gdb_available:
+            root_cause = _try_gdb_trace(error, executable)
+
+        # --- Fallback to static analysis ---------------------------------
+        if root_cause is None:
+            root_cause = _try_static_analysis(error)
+
+        if root_cause:
+            error['root_cause'] = {
+                'type': root_cause["leak_type"],
+                'line': root_cause["line"],
+                'line_number': root_cause.get("line_number"),
+                'function': root_cause["function"],
+                'file': root_cause["file"],
+                'steps': root_cause["steps"],
+                'gdb_trace': root_cause.get("gdb_trace"),
+            }
+        else:
+            error['root_cause'] = None
 
     stop_spinner(t, "Analyzing memory paths")
+
+
+def _try_gdb_trace(
+    error: ValgrindError,
+    executable: str,
+) -> Optional[dict]:
+    """
+    Attempt to trace the leaked pointer using GDB.
+
+    Extracts the allocation variable from the source code, then runs
+    GDB to capture the real execution trace.
+
+    Args:
+        error:      Parsed Valgrind error with extracted code and backtrace.
+        executable: Path to the compiled binary.
+
+    Returns:
+        A ``RootCauseInfo`` dict on success, or ``None`` on failure.
+    """
+    try:
+        backtrace = error.get('backtrace', [])
+        extracted_code = error.get('extracted_code', [])
+
+        if not backtrace or not extracted_code:
+            return None
+
+        # The innermost frame (last in reversed backtrace) has the malloc.
+        alloc_frame = backtrace[-1]
+        alloc_file = alloc_frame['file']
+        alloc_line = alloc_frame['line']
+
+        # The caller frame (one level above) disambiguates when the
+        # same allocation function is called from multiple sites.
+        caller_file = ""
+        caller_line = 0
+        if len(backtrace) >= 2:
+            caller_frame = backtrace[-2]
+            caller_file = caller_frame['file']
+            caller_line = caller_frame['line']
+
+        # Extract the variable from the first function's code.
+        alloc_var = _extract_alloc_variable(extracted_code)
+        if not alloc_var:
+            return None
+
+        # Function names from the backtrace (innermost → outermost).
+        backtrace_functions = [
+            frame['function'] for frame in reversed(backtrace)
+        ]
+
+        trace_result = trace_pointer(
+            executable, alloc_file, alloc_line,
+            alloc_var, backtrace_functions,
+            caller_file, caller_line,
+        )
+
+        if not trace_result["success"] or not trace_result["trace"]:
+            return None
+
+        root_cause = find_root_cause_from_trace(
+            trace_result["trace"],
+            trace_result["free_events"],
+        )
+        if root_cause is not None:
+            root_cause["gdb_trace"] = trace_result["trace"]
+        return root_cause
+
+    except Exception:
+        return None
+
+
+def _try_static_analysis(error: ValgrindError) -> Optional[dict]:
+    """
+    Fallback: find root cause using static code analysis.
+
+    Args:
+        error: Parsed Valgrind error with extracted code.
+
+    Returns:
+        A ``RootCauseInfo`` dict on success, or ``None`` on failure.
+    """
+    try:
+        converted = convert_extracted_code(error['extracted_code'])
+        return find_root_cause(converted)
+    except Exception:
+        return None
+
+
+def _extract_alloc_variable(
+    extracted_code: list,
+) -> Optional[str]:
+    """
+    Determine which variable receives the ``malloc`` return value.
+
+    Scans the first extracted function (the allocation site) for a line
+    containing ``malloc(`` and extracts the left-hand side of the
+    assignment.
+
+    Args:
+        extracted_code: List of ``ExtractedFunction`` dicts.
+
+    Returns:
+        Variable name (e.g. ``"ptr"`` or ``"n->data"``), or ``None``.
+    """
+    if not extracted_code:
+        return None
+
+    # The allocation function is the last one (innermost in backtrace,
+    # but extract_call_stack reverses so it may be first or last depending
+    # on ordering).  Scan all functions for the malloc line.
+    for func in extracted_code:
+        for code_line in func.get('code', '').split('\n'):
+            # Strip line number prefix  "23: code..." → "code..."
+            if ':' in code_line:
+                actual_code = code_line[code_line.index(':') + 1:]
+            else:
+                actual_code = code_line
+
+            if is_malloc(actual_code):
+                return extract_left_side(actual_code)
+
+    return None
 
 
 def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> str:
@@ -310,7 +456,7 @@ def main() -> int:
         clear_screen()
 
         # Play Mistral animation (2 seconds)
-        play_mistral_animation(duration=3.5)
+        # play_mistral_animation(duration=3.5)
 
         # Hide real cursor
         print("\033[?25l", end="", flush=True)
@@ -365,7 +511,7 @@ def main() -> int:
             _extract_source_code(parsed_errors)
 
             # Find root causes
-            _find_root_causes(parsed_errors)
+            _find_root_causes(parsed_errors, executable)
 
             # Process all leaks
             status = _process_all_leaks(parsed_errors, executable)

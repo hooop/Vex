@@ -134,3 +134,31 @@ class CleanedCodeLines(TypedDict):
     contributing: list[ContributingLineInfo]
     context_before: Optional[CodeLineInfo]
     context_after: Optional[CodeLineInfo]
+
+
+# =============================================================================
+# GDB TRACING TYPES
+# =============================================================================
+
+class TraceStep(TypedDict):
+    """Single step in a GDB execution trace."""
+    file: str
+    line: int
+    function: str
+    code: str
+
+
+class FreeEvent(TypedDict):
+    """Record of a free() call on the tracked address."""
+    caller_file: str
+    caller_line: int
+    caller_function: str
+
+
+class GdbTraceResult(TypedDict):
+    """Complete result from a GDB pointer tracing session."""
+    success: bool
+    trace: list[TraceStep]
+    tracked_address: str
+    free_events: list[FreeEvent]
+    error: str

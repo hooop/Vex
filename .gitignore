@@ -1,21 +1,34 @@
 .env
+.env.backup
 .DS_Store
 __pycache__/
 srcs/__pycache__/
 *.pyc
-accueil_vex.cpp
-vex.cpp
+*.o
+*.out
+*.exe
+core
+
+# Dev/test scripts
+run_test.sh
+test_gdb.py
 test_pipeline.py
 test_extractor.py
-core
-examples/core
-logo.txt
-*.o
-iteration_prompt.md
-.env.backup
 
-# Binaires compilés
+# Compiled binaries
+examples/*/leaky
 test_cases/leaky
 test_cases/*/leaky
-*.out
-*.exeexamples/README.md
+
+# Debug artifacts
+examples/*/*.txt
+*.dSYM
+vgcore.*
+
+# Legacy files
+accueil_vex.cpp
+vex.cpp
+logo.txt
+iteration_prompt.md
+examples/README.md
+examples/core

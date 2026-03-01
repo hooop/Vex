@@ -107,6 +107,7 @@ fi
 
 # Run Vex in Docker container
 docker run -it --rm \
+    --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
     --env-file "$ENV_SOURCE" \
     -v "$CURRENT_DIR:/work" \
     -w /work \

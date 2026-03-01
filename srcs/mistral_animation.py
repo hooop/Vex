@@ -46,7 +46,7 @@ LOGO = [
 ]
 
 # Logo timing
-LOGO_START_DELAY = 1.2    # Seconds before logo starts appearing
+LOGO_START_DELAY = 1.3    # Seconds before logo starts appearing
 LOGO_DURATION = 0.5       # Seconds to display full logo
 
 

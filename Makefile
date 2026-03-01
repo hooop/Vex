@@ -64,7 +64,7 @@ uninstall:
 # Open interactive shell in container
 shell:
 	@docker image inspect vex > /dev/null 2>&1 || $(MAKE) build --no-print-directory
-	@docker run $(PLATFORM) -it --rm -v $(PWD):/app vex /bin/bash
+	@docker run $(PLATFORM) -it --rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v $(PWD):/app vex /bin/bash
 
 # Remove Docker image and Python cache
 clean:

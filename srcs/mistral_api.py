@@ -68,6 +68,7 @@ def analyze_memory_leak(
 
     try:
         prompt = _build_prompt(error_data, code_context, root_cause)
+
         response = _call_mistral_api(prompt)
 
         # Nettoie la réponse
@@ -91,7 +92,9 @@ def analyze_memory_leak(
                 analysis["real_cause"] = {}
             analysis["real_cause"]["file"] = root_cause.get("file", "unknown")
             analysis["real_cause"]["function"] = root_cause["function"]
-            analysis["real_cause"]["root_cause_code"] = root_cause["line"].strip()
+            analysis["real_cause"]["root_cause_code"] = str(root_cause["line"]).strip()
+            if root_cause.get("line_number"):
+                analysis["real_cause"]["line_number"] = root_cause["line_number"]
 
         return analysis
 
@@ -121,6 +124,35 @@ def _format_steps(steps: Optional[list[str]]) -> str:
     return formatted
 
 
+def _format_gdb_trace(gdb_trace: list[dict]) -> str:
+    """
+    Format GDB execution trace for prompt.
+
+    Each entry contains file, line, function and code representing
+    the actual lines executed at runtime, in order.
+
+    Args:
+        gdb_trace: List of trace steps from GDB.
+
+    Returns:
+        Formatted string showing executed lines in order.
+    """
+
+    if not gdb_trace:
+        return ""
+
+    formatted = ""
+    for step in gdb_trace:
+        func = step.get("function", "?")
+        line = step.get("line", "?")
+        code = step.get("code", "").strip()
+        if code:
+            formatted += f"  {func}() line {line}: {code}\n"
+        else:
+            formatted += f"  {func}() line {line}\n"
+    return formatted
+
+
 def _build_prompt(
     error_data: ValgrindError,
     code_context: str,
@@ -146,17 +178,19 @@ def _build_prompt(
     }
 
     # Infos root cause
+    gdb_trace = root_cause.get('gdb_trace') if root_cause else None
+
     if root_cause:
         root_cause_section = f"""
 ====================================================
-ROOT CAUSE (identified by static analysis)
+ROOT CAUSE (identified by analysis)
 ====================================================
 
 {type_labels.get(root_cause['type'], 'Unknown type')}
 
 File      : {root_cause.get('file', 'unknown')}
 Function  : {root_cause['function']}()
-Line      : {root_cause['line'].strip()}
+Line      : {str(root_cause['line']).strip()}
 
 Memory path:
 {_format_steps(root_cause.get('steps', []))}
@@ -170,6 +204,28 @@ ROOT CAUSE
 Not identified (manual analysis required)
 """
 
+    # GDB execution trace section (when available)
+    if gdb_trace:
+        execution_trace_section = f"""
+====================================================
+EXECUTION TRACE (lines actually executed at runtime)
+====================================================
+
+The following lines were executed IN ORDER during the program run.
+Lines that do NOT appear here were NOT executed.
+Use this trace as the primary source to understand what happened.
+
+{_format_gdb_trace(gdb_trace)}
+"""
+    else:
+        execution_trace_section = ""
+
+    # Source code section label depends on whether we have a trace
+    if gdb_trace:
+        source_code_label = "SOURCE CODE (full functions for context — use for proposing fixes)"
+    else:
+        source_code_label = "SOURCE CODE"
+
     prompt = f"""You are a C and memory management expert. You must explain a memory leak in a pedagogical way.
 
 ====================================================
@@ -180,9 +236,9 @@ VALGRIND REPORT
 Allocation function: {error_data.get('function', 'unknown')}()
 File: {error_data.get('file', 'unknown')}
 Line: {error_data.get('line', '?')}
-
+{execution_trace_section}
 ====================================================
-SOURCE CODE
+{source_code_label}
 ====================================================
 
 {code_context}
@@ -196,6 +252,8 @@ YOUR MISSION
 2. Provide step-by-step pedagogical reasoning (based on the memory path above)
 3. Identify important code lines (contributing_codes)
 4. Propose a solution with corrective code
+
+CRITICAL: If an execution trace is provided above, base your reasoning ONLY on the lines that were actually executed. A line that appears in the source code but NOT in the execution trace was NOT executed during this run. Do not assume it was.
 
 ====================================================
 JSON FORMAT (only, no text around)
@@ -214,7 +272,7 @@ JSON FORMAT (only, no text around)
     "file": "{root_cause.get('file', 'unknown') if root_cause else 'unknown'}",
     "function": "{root_cause['function'] if root_cause else 'unknown'}",
     "owner": "<variable that should have freed the memory>",
-    "root_cause_code": "{root_cause['line'].strip() if root_cause else ''}",
+    "root_cause_code": "{str(root_cause['line']).strip() if root_cause else ''}",
     "root_cause_comment": "<why this line causes the leak>",
     "contributing_codes": [
       {{"code": "<important line>", "comment": "<its role in the leak>"}},
@@ -236,6 +294,7 @@ IMPORTANT RULES:
 - contributing_codes: only lines BEFORE root_cause_code
 - root_cause_comment: maximum 10 words
 - resolution_principle: mention function, action, and reference line
+- When the root cause is a closing brace (pointer lost at end of scope), the fix must be placed just before that closing brace, not earlier in the function
 - JSON only, no text around
 """
 
