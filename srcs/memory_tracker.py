@@ -694,6 +694,7 @@ def find_root_cause_from_trace(
             # The current line should be the call/assignment site.
             _apply_return_mapping(
                 pending_return_var, code, tracking, steps, func,
+                callee_func=prev_function,
             )
             pending_return_var = None
             # Update root_function for the new root in the caller.
@@ -791,8 +792,8 @@ def find_root_cause_from_trace(
                         tracking[param_name] = new_entry
                         root_function[param_name] = func
                         steps.append(
-                            f"PARAM: {new_target} = {ent['target']}"
-                            f" in {func}()"
+                            f"PARAM: {ent['target']} passed as"
+                            f" {new_target} to {func}()"
                         )
                         break
 
@@ -967,6 +968,7 @@ def _apply_return_mapping(
     tracking: dict[str, TrackingEntry],
     steps: list[str],
     caller_func: str,
+    callee_func: str = "",
 ) -> None:
     """
     Map a returned variable to the receiver in the calling function.
@@ -1013,7 +1015,8 @@ def _apply_return_mapping(
     tracking[new_root] = new_entry
 
     steps.append(
-        f"RETURN: {old_target} -> {new_target} in {caller_func}()"
+        f"RETURN: {callee_func}() returns {old_target},"
+        f" stored in {new_target} in {caller_func}()"
     )
 
 
