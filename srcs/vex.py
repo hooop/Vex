@@ -99,7 +99,7 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
     """
 
     clear_screen()
-    display_logo()
+    print("\033[?25l", end="", flush=True)
 
     # Re-run Valgrind
     t = start_spinner("Running Valgrind")
@@ -382,7 +382,8 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
                 display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors), show_details=show_details)
 
                 # Menu after each leak (d = toggle details)
-                menu_choice = interactive_menu(["Verify", "Next leak", "Quit Vex"], hotkeys={'d'})
+                options = ["Verify", "Next leak", "Quit Vex"] if len(parsed_errors) > 1 else ["Verify", "Quit Vex"]
+                menu_choice = interactive_menu(options, hotkeys={'d'})
 
                 if menu_choice == 'd':
                     # Toggle details and redisplay
@@ -390,12 +391,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
                     clear_screen()
                     continue
 
-                elif menu_choice == 0:
-                    choice = "verify"
-                elif menu_choice == 1:
-                    choice = "skip"
-                elif menu_choice == 2:
-                    choice = "quit"
+                choice = options[menu_choice].lower().split()[0]
 
                 break
 
@@ -409,7 +405,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
 
                 return "need_recompile"
 
-            elif choice == "skip":
+            elif choice == "next":
                 clear_screen()
                 # Skip to next
                 if i < len(parsed_errors):
@@ -466,9 +462,6 @@ def main() -> int:
 
     try:
         clear_screen()
-
-        # Play Mistral animation (2 seconds)
-        # play_mistral_animation(duration=3.5)
 
         # Hide real cursor
         print("\033[?25l", end="", flush=True)
@@ -563,6 +556,10 @@ def main() -> int:
         import traceback
         traceback.print_exc()
         return ERROR
+
+    finally:
+        # Always restore cursor visibility on exit
+        print("\033[?25h", end="", flush=True)
 
 
 if __name__ == "__main__":

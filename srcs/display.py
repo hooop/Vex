@@ -18,32 +18,19 @@ from type_defs import ValgrindError, MistralAnalysis, RealCause, CleanedCodeLine
 
 def _build_header(error_number: int, total_errors: int) -> str:
     """
-    Build the header with horizontal lines and aligned separator.
-    
+    Build the header with half-block frame.
+
     Args:
         error_number: Current leak number
         total_errors: Total number of leaks
-    
+
     Returns:
         Formatted header with ANSI colors
     """
 
-    print()
+    leak_text = f"Leak {error_number} / {total_errors}"
 
-    # Build central text
-    text = f"Vex Analysis | Leak {error_number} / {total_errors}"
-
-    # Find position of '|' in text
-    separator_pos = text.index('|')
-
-    total_length = len(text)
-
-    # Build lines with '+' aligned on '|'
-    top_line = "―" * separator_pos + "+" + "―" * (total_length - separator_pos - 1)
-    bottom_line = top_line
-
-    # Final assembly with colors
-    header = f"{DARK_GREEN}{top_line}\n{text}\n{bottom_line}{RESET}\n"
+    header = f"\n\033[38;5;224m│ Vex Analysis\n│ {leak_text}{RESET}\n"
 
     return header
 
