@@ -6,13 +6,16 @@
 
 ---
 
+
 ## What is VEX?
 
 VEX (Valgrind Error eXplorer) is a CLI tool that analyzes memory leaks in C programs. It combines Valgrind, GDB dynamic tracing, and Mistral AI to identify the root cause of each leak and explain how to fix it.
 
+
 ## Why VEX?
 
 Memory leak analysis is a domain where LLMs perform poorly when used alone. They don't simulate memory, propagate early mistakes, and often fail on non-trivial cases involving aliasing, embedded allocations, or container lifetimes.
+
 
 **VEX takes a different approach** — it separates the problem into two phases:
 
@@ -21,6 +24,7 @@ Memory leak analysis is a domain where LLMs perform poorly when used alone. They
 
 The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
+
 ## Installation
 
 ### Linux (native)
@@ -28,7 +32,7 @@ The LLM never guesses ownership or simulates memory. It only explains what the d
 **Requirements:** `valgrind`, `gdb`, `python3`, `pip3`
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:hooop/Vex.git
 cd vex
 make install
 ```
@@ -47,6 +51,7 @@ make install
 
 Builds a Docker image and installs the `vex` command to `/usr/local/bin` (requires sudo).
 
+
 ### Configure your API key
 
 ```bash
@@ -57,11 +62,13 @@ Enter your [Mistral AI](https://console.mistral.ai/) API key when prompted.
 
 > For the best visual experience, use a terminal with a dark background.
 
+
 ## Usage
 
 ```bash
 vex <executable> [arguments]
 ```
+
 
 ### Example
 
@@ -94,6 +101,7 @@ Source + Executable
 
 **GDB dynamic tracing** follows the actual execution path of your program — through loops, conditionals, and function calls — to build a precise trace that the memory tracker uses to reason about ownership.
 
+
 ## Leak Classification
 
 VEX categorizes leaks into three types:
@@ -106,10 +114,12 @@ VEX categorizes leaks into three types:
 
 Each points to the precise line of code responsible.
 
+
 ## Limitations
 
 - One allocation tracked at a time
 - Single execution path (no multi-threading analysis)
+
 
 ## Design Philosophy
 
