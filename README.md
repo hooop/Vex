@@ -1,134 +1,119 @@
-![Vex Logo](./assets/logo.svg)
+<p align="center">
+  <img src="./assets/logo.svg" alt="Vex Logo" width="200">
+</p>
 
-# VEX - Valgrind Error eXplorer
+<h3 align="center">Deterministic memory leak analysis, explained by AI.</h3>
 
-VEX is a CLI tool that combines deterministic memory leak analysis with Mistral AI to provide intelligent, guided debugging assistance for C programs.
+---
+
+## What is VEX?
+
+VEX (Valgrind Error eXplorer) is a CLI tool that analyzes memory leaks in C programs. It combines Valgrind, GDB dynamic tracing, and Mistral AI to identify the root cause of each leak and explain how to fix it.
 
 ## Why VEX?
 
-Memory leak analysis is a domain where LLMs perform poorly when used naively. They don't simulate memory, propagate early mistakes, and often fail on non-trivial cases involving aliasing, embedded allocations, or container lifetimes.
+Memory leak analysis is a domain where LLMs perform poorly when used alone. They don't simulate memory, propagate early mistakes, and often fail on non-trivial cases involving aliasing, embedded allocations, or container lifetimes.
 
-**VEX takes a different approach:** Instead of asking an LLM to find the root cause, it separates the problem into two phases:
+**VEX takes a different approach** — it separates the problem into two phases:
 
-1. **Deterministic root cause identification** - A Python algorithm tracks memory paths through your code, following Valgrind's execution trace line by line
-2. **LLM-assisted explanation** - Mistral AI (mistral-small-latest) explains the leak, justifies the root cause, and suggests a minimal fix
+1. **Deterministic root cause identification** — Valgrind detects the leak, GDB traces execution dynamically, and a Python algorithm tracks memory ownership line by line
+2. **LLM-assisted explanation** — Mistral AI explains the leak, justifies the root cause, and suggests a minimal fix
 
 The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
-https://github.com/user-attachments/assets/d05d8701-0ba2-4842-b3a7-93aeb5c4a723
-
-
-## Requirements
-
-Before installing VEX, make sure you have:
-
-- Docker
-- Python 3.x
-- A Mistral AI API key
-
-**Note:** For the best visual experience, use a terminal with a dark background.
-
 ## Installation
 
-1. **Clone the repository**
+### Linux (native)
+
+**Requirements:** `valgrind`, `gdb`, `python3`, `pip3`
+
 ```bash
 git clone <repository-url>
 cd vex
-```
-
-2. **Install VEX**
-```bash
 make install
 ```
-You'll be prompted for your sudo password to install the tool system-wide.
 
-3. **Configure your API key**
+Installs to `~/.local/` — no sudo required. Missing dependencies are detected automatically.
+
+### macOS (Docker)
+
+**Requirements:** Docker
+
+```bash
+git clone <repository-url>
+cd vex
+make install
+```
+
+Builds a Docker image and installs the `vex` command to `/usr/local/bin` (requires sudo).
+
+### Configure your API key
+
 ```bash
 vex configure
 ```
-Enter your Mistral AI API key when prompted.
+
+Enter your [Mistral AI](https://console.mistral.ai/) API key when prompted.
+
+> For the best visual experience, use a terminal with a dark background.
 
 ## Usage
 
-### Basic Command
 ```bash
 vex <executable> [arguments]
 ```
 
-VEX will:
-1. Run your program through Valgrind
-2. Analyze memory paths deterministically
-3. Provide AI-powered explanations and fix suggestions
+### Example
 
-### Try the Examples
 ```bash
-cd examples/Type_1
+cd examples/test_array
 make
 vex ./leaky
 ```
 
-The `examples` directory contains three types of memory leak scenarios to help you understand how VEX works.
+The `examples/` directory contains scenarios for each leak type.
 
-![Vex output](assets/vex_analysis.png)
 
 ## How It Works
 
-### Deterministic Analysis
+```
+Source + Executable
+        |
+        v
+   1. Valgrind         →  Detects leaks, reports allocation/free sites
+        |
+        v
+   2. GDB Tracing      →  Dynamic execution trace with loop, branch,
+        |                  and cross-function tracking
+        v
+   3. Memory Tracker    →  Tracks roots, access paths, ownership transfers
+        |                  Identifies the exact line where the leak occurs
+        v
+   4. Mistral AI        →  Explains the root cause and suggests a fix
+```
 
-Given a Valgrind report, VEX tracks one allocation at a time through your code:
+**GDB dynamic tracing** follows the actual execution path of your program — through loops, conditionals, and function calls — to build a precise trace that the memory tracker uses to reason about ownership.
 
-- Maintains **roots** (variables that can reach the allocation)
-- Tracks **access paths** (e.g., `node->data`)
-- Updates paths when encountering aliases, reassignments, frees, or scope exits
+## Leak Classification
 
-When no valid path remains and the allocation wasn't freed, the root cause is identified.
+VEX categorizes leaks into three types:
 
-### Leak Classification
-
-VEX categorizes leaks into three concrete types:
-
-1. **Missing free** - Allocation never freed before paths disappear
-2. **Path loss by reassignment** - Last access path overwritten or set to NULL
-3. **Container freed first** - Structure freed while owning embedded allocations
+| Type | Name | Description |
+|------|------|-------------|
+| 1 | **Missing free** | Allocation never freed before all paths disappear |
+| 2 | **Path loss by reassignment** | Last access path overwritten or set to NULL |
+| 3 | **Container freed first** | Structure freed while still owning embedded allocations |
 
 Each points to the precise line of code responsible.
 
-### LLM Role
+## Limitations
 
-After deterministic analysis, Mistral AI receives:
-- The Valgrind report
-- Relevant source code
-- The identified root cause
-- The leak classification
-
-It then explains the leak step-by-step and proposes a correct fix.
+- One allocation tracked at a time
+- Single execution path (no multi-threading analysis)
 
 ## Design Philosophy
 
-**What VEX avoids:**
-- Global program analysis
-- Heuristics or "smart" guessing
-- Overfitting to simple examples
-
-**What VEX focuses on:**
-- Constrained reasoning
-- Explicit assumptions
-- Trustworthy results within supported scope
-
-**Current limitations:**
-- No loop handling
-- Single execution path only
-- One allocation tracked at a time
-- Conditions not handled
-- External free functions not tracked
-
-These features are on the TODO list.
-
-## Why This Matters
-
-This project explores how deterministic analysis and LLMs can complement each other by assigning each tool a role aligned with its strengths:
-
-- **Deterministic analysis**: Root cause identification with zero false positives
-- **LLMs**: Explanation, pedagogy, and fix suggestions
+- **Deterministic analysis** handles root cause identification — zero false positives within supported scope
+- **LLMs** handle explanation, pedagogy, and fix suggestions
 
 The goal isn't to replace Valgrind, but to make its output actionable for developers learning C.
