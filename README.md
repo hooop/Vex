@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.svg" alt="Vex Logo" width="200">
+  <img src="./assets/vex.png" alt="Vex Logo" width="400">
 </p>
 
 <h3 align="center">Deterministic memory leak analysis, explained by AI.</h3>
