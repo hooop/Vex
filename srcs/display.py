@@ -12,7 +12,7 @@ from typing import Optional
 from code_extractor import _find_source_file 
 from colors import (
     RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW,
-    DARK_PINK, RED, GRAY, GRAY_DARK
+    DARK_PINK, RED, GRAY, GRAY
 )
 from type_defs import ValgrindError, MistralAnalysis, RealCause, CleanedCodeLines 
 
@@ -58,10 +58,9 @@ def _build_valgrind_section(error: ValgrindError) -> str:
         Formatted section with ANSI colors
     """
 
-    # Title
-    output = f"{GREEN}• Valgrind Output{RESET}\n\n"
+    output = ""
 
-    # # First line with complete info
+    # First line with complete info
     bytes_info = f"{error.get('bytes', '?')} bytes"
     if error.get('blocks'):
         bytes_info += f" in {error['blocks']} blocks"
@@ -378,19 +377,19 @@ def _build_code_section(error: ValgrindError, analysis: MistralAnalysis) -> str:
             prev_line = lines_to_display[i-1]['line']
             curr_line = item['line']
             if curr_line - prev_line > 1:
-                output += f"      {GRAY_DARK}-{RESET}\n"
+                output += f"      {GRAY}-{RESET}\n"
 
         # Display line
         if item['is_root']:
             output += f"{DARK_PINK} ➤ {item['line']} | {item['code']}{RESET}"
             if item['comment']:
-                output += f"  {GRAY_DARK}// {item['comment']}{RESET}"
+                output += f"  {GRAY}// {item['comment']}{RESET}"
             output += "\n"
         else:
             # Normal line
             output += f"   {item['line']} | {item['code']}"
             if item['comment']:
-                output += f"  {GRAY_DARK}// {item['comment']}{RESET}"
+                output += f"  {GRAY}// {item['comment']}{RESET}"
             output += "\n"
 
     output += "\n"
@@ -432,7 +431,7 @@ def _build_explanations_section(analysis: MistralAnalysis) -> str:
         Formatted section with ANSI colors
     """
 
-    output = f"{GREEN}• Explanation{RESET}\n\n"
+    output = ""
 
     # Explanation content
     explanations = analysis.get('explanations', 'No explanation available')
@@ -441,7 +440,7 @@ def _build_explanations_section(analysis: MistralAnalysis) -> str:
     return output
 
 
-def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_number: int = 1, total_errors: int = 1) -> None:
+def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_number: int = 1, total_errors: int = 1, show_details: bool = False) -> None:
     """
     Displays an analysis in formatted way in the terminal.
 
@@ -450,10 +449,15 @@ def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_numb
         analysis: Dictionary returned by Mistral (parsed JSON) or dict with 'error'
         error_number: Current error number
         total_errors: Total number of errors
+        show_details: If True, expand Valgrind output and Explanation sections
     """
     print(_build_header(error_number, total_errors))
 
-    print(_build_valgrind_section(error))
+    detail_hint = f"{GRAY}Press [d] to hide{RESET}" if show_details else f"{GRAY}Press [d] for details{RESET}"
+
+    print(f"{GREEN}• Valgrind Output {detail_hint}{RESET}\n")
+    if show_details:
+        print(_build_valgrind_section(error))
 
     # If error in Mistral analysis
     if 'error' in analysis:
@@ -470,7 +474,9 @@ def display_analysis(error: ValgrindError, analysis: MistralAnalysis, error_numb
 
     print(_build_solution_section(analysis))
 
-    print(_build_explanations_section(analysis))
+    print(f"{GREEN}• Explanation {detail_hint}{RESET}\n")
+    if show_details:
+        print(_build_explanations_section(analysis))
 
 
 def display_leak_menu() -> str:

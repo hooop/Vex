@@ -25,4 +25,4 @@ RED = "\033[38;5;174m"
 
 # Gray shades
 GRAY_DARK = "\033[38;5;236m"  # Used for code comments
-GRAY = "\033[38;5;240m"       # Used for menu text
+GRAY = "\033[38;5;245m"       # Used for secondary info

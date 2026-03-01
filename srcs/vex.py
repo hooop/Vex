@@ -376,17 +376,28 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
             # Show real cursor
             print("\033[?25h", end="", flush=True)
 
-            display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors))
+            show_details = False
 
-            # Menu after each leak
-            menu_choice = interactive_menu(["Verify", "Next leak", "Quit Vex"])
+            while True:
+                display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors), show_details=show_details)
 
-            if menu_choice == 0:
-                choice = "verify"
-            elif menu_choice == 1:
-                choice = "skip"
-            elif menu_choice == 2:
-                choice = "quit"
+                # Menu after each leak (d = toggle details)
+                menu_choice = interactive_menu(["Verify", "Next leak", "Quit Vex"], hotkeys={'d'})
+
+                if menu_choice == 'd':
+                    # Toggle details and redisplay
+                    show_details = not show_details
+                    clear_screen()
+                    continue
+
+                elif menu_choice == 0:
+                    choice = "verify"
+                elif menu_choice == 1:
+                    choice = "skip"
+                elif menu_choice == 2:
+                    choice = "quit"
+
+                break
 
             if choice == "verify":
                 # Recompile
