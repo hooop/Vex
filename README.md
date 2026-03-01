@@ -40,7 +40,7 @@ Installs to `~/.local/` — no sudo required. Missing dependencies are detected 
 **Requirements:** Docker
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:hooop/Vex.git
 cd vex
 make install
 ```
