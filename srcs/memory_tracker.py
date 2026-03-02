@@ -244,7 +244,12 @@ def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple
         return (False, None, None, None, None)
 
     # CASE 3: assignment (x = y)
-    if "=" in line:
+    # Skip lines where '=' is part of a comparison (==, !=, <=, >=)
+    # but not a real assignment.  A real assignment has a standalone '='
+    # not preceded or followed by =, !, <, >.
+    import re
+    has_assignment = "=" in line and re.search(r'(?<![=!<>])=(?!=)', line)
+    if has_assignment:
         left = extract_left_side(line)
         right = extract_right_side(line)
 
