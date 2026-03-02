@@ -149,8 +149,10 @@ def extract_right_side(line: str) -> str:
 # =============================================================================
 
 def is_malloc(line: str) -> bool:
-    """Check if line contains a malloc call."""
-    return "malloc(" in line
+    """Check if line contains a heap allocation call."""
+    return ("malloc(" in line
+            or "calloc(" in line
+            or "strdup(" in line)
 
 
 def is_return(line: str) -> bool:
