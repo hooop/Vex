@@ -25,6 +25,9 @@ examples/*/*.txt
 *.dSYM
 vgcore.*
 
+# Claude Code
+CLAUDE.md
+
 # Legacy files
 accueil_vex.cpp
 vex.cpp
