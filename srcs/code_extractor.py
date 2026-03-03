@@ -57,48 +57,49 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
 
 def _find_function_start(lines: list[str], from_line: int) -> Optional[int]:
     """
-    Find the start of a function by going backwards from a line.
-    Looks for opening brace at the start of a line or after a closing parenthesis.
+    Find the start of the enclosing function using brace depth counting.
+
+    Scans backwards from the given line, tracking brace depth.  Each ``}``
+    increments depth (entering a nested block in reverse), each ``{``
+    decrements it.  The first ``{`` that makes depth negative is the
+    function's opening brace.
 
     Args:
         lines: List of file lines
         from_line: Index to start searching backwards from (0-indexed)
 
     Returns:
-        Index of the line where the function starts, or None
+        Index of the first line of the function (signature), or None
     """
+    depth = 0
+    func_brace_line = None
+
     for i in range(from_line, -1, -1):
-        line = lines[i].strip()
-
-        # Skip empty lines and preprocessor directives
-        if not line or line.startswith("#"):
-            continue
-
-        # Function typically starts with opening brace
-        if line.endswith("{"):
-            # Go back to find the function signature
-            func_start = i
-            while func_start > 0 and not lines[func_start - 1].strip().startswith(
-                (
-                    "static",
-                    "void",
-                    "int",
-                    "char",
-                    "float",
-                    "double",
-                    "long",
-                    "short",
-                    "unsigned",
-                )
-            ):
-                func_start -= 1
-                # Stop if we hit an empty line or closing brace
-                if not lines[func_start].strip() or lines[func_start].strip() == "}":
-                    func_start += 1
+        for char in reversed(lines[i]):
+            if char == "}":
+                depth += 1
+            elif char == "{":
+                if depth > 0:
+                    depth -= 1
+                else:
+                    func_brace_line = i
                     break
-            return func_start
+        if func_brace_line is not None:
+            break
 
-    return None
+    if func_brace_line is None:
+        return None
+
+    # Walk back from the opening brace to include the function signature.
+    # Stop at an empty line, end of previous function, or preprocessor directive.
+    func_start = func_brace_line
+    while func_start > 0:
+        prev = lines[func_start - 1].strip()
+        if not prev or prev == "}" or prev.startswith("#"):
+            break
+        func_start -= 1
+
+    return func_start
 
 
 def _find_function_end(lines: list[str], start_line: int) -> Optional[int]:
