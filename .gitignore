@@ -3,6 +3,9 @@
 .DS_Store
 __pycache__/
 srcs/__pycache__/
+.ruff_cache/
+srcs/.ruff_cache/
+.claude/
 *.pyc
 *.o
 *.out
