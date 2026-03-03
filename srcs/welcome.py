@@ -6,15 +6,11 @@ progress spinners, and summary before starting leak analysis.
 """
 
 import os
-import random
 import sys
 import threading
 import time
 
-from colors import (
-    RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW,
-    LIGHT_PINK
-)
+from colors import RESET, GREEN, DARK_GREEN, LIGHT_YELLOW, DARK_YELLOW, LIGHT_PINK
 from type_defs import ParsedValgrindReport
 
 # Global flags for spinner control
@@ -25,7 +21,7 @@ _block_spinner_active = False
 def clear_screen() -> None:
     """Clear the terminal screen."""
 
-    os.system('clear')
+    os.system("clear")
 
 
 def display_logo() -> None:
@@ -34,18 +30,18 @@ def display_logo() -> None:
     logo_lines = [
         "██  ██  ██████  ██  ██",
         "██▌ ██  ██▄▄      ██",
-        "  ████  ██████  ██  ██"
+        "  ████  ██████  ██  ██",
     ]
 
     # Animation parameters
     START_ROW = 1
-    LINE_STAGGER = 4      # Characters delay before next line starts
-    STEP_DELAY = 0.025    # Seconds between each animation step
+    LINE_STAGGER = 4  # Characters delay before next line starts
+    STEP_DELAY = 0.025  # Seconds between each animation step
 
     # Parse non-space characters per line: list of (col, char)
     line_chars = []
     for line in logo_lines:
-        chars = [(col, ch) for col, ch in enumerate(line) if ch != ' ']
+        chars = [(col, ch) for col, ch in enumerate(line) if ch != " "]
         line_chars.append(chars)
 
     max_len = max(len(chars) for chars in line_chars)
@@ -61,12 +57,20 @@ def display_logo() -> None:
             col, ch = chars[char_idx]
 
             # Pink cursor on leading edge
-            print(f"\033[{START_ROW + line_idx};{col + 1}H{LIGHT_PINK}{ch}{RESET}", end="", flush=True)
+            print(
+                f"\033[{START_ROW + line_idx};{col + 1}H{LIGHT_PINK}{ch}{RESET}",
+                end="",
+                flush=True,
+            )
 
             # Turn previous char green
             if char_idx > 0:
                 prev_col, prev_ch = chars[char_idx - 1]
-                print(f"\033[{START_ROW + line_idx};{prev_col + 1}H{DARK_GREEN}{prev_ch}{RESET}", end="", flush=True)
+                print(
+                    f"\033[{START_ROW + line_idx};{prev_col + 1}H{DARK_GREEN}{prev_ch}{RESET}",
+                    end="",
+                    flush=True,
+                )
 
         time.sleep(STEP_DELAY)
 
@@ -74,7 +78,11 @@ def display_logo() -> None:
     for line_idx, chars in enumerate(line_chars):
         if chars:
             col, ch = chars[-1]
-            print(f"\033[{START_ROW + line_idx};{col + 1}H{DARK_GREEN}{ch}{RESET}", end="", flush=True)
+            print(
+                f"\033[{START_ROW + line_idx};{col + 1}H{DARK_GREEN}{ch}{RESET}",
+                end="",
+                flush=True,
+            )
 
     # Position cursor after logo
     print(f"\033[{len(logo_lines) + START_ROW};1H")
@@ -86,7 +94,7 @@ def display_logo() -> None:
 def _spinner_animation(message: str) -> None:
     """Thread function that displays the animated spinner."""
 
-    spinner = ['◐', '◓', '◑', '◒']
+    spinner = ["◐", "◓", "◑", "◒"]
     colors = [LIGHT_PINK, DARK_GREEN]
     i = 0
     while _spinner_active:
@@ -96,6 +104,7 @@ def _spinner_animation(message: str) -> None:
         sys.stdout.flush()
         time.sleep(0.1)
         i += 1
+
 
 def start_spinner(message: str) -> threading.Thread:
     """
@@ -132,7 +141,6 @@ def stop_spinner(thread: threading.Thread, message: str) -> None:
     sys.stdout.flush()
 
 
-
 def _block_spinner_animation(message: str) -> None:
     """
     Thread function that reveals/hides text with block animation.
@@ -148,8 +156,8 @@ def _block_spinner_animation(message: str) -> None:
     pos_counter = 0
     color_counter = 0
 
-    pos_speed = 0.25   # Larger = slower scrolling
-    color_speed = 3    # Larger = slower blinking
+    pos_speed = 0.25  # Larger = slower scrolling
+    color_speed = 3  # Larger = slower blinking
 
     tick = 0
 
@@ -159,9 +167,9 @@ def _block_spinner_animation(message: str) -> None:
         color = colors[color_counter % 2]
 
         if phase == 0:
-            text = f"  {message[:pos + 1]}{color}{'▉' * (length - pos - 1)}{RESET}"
+            text = f"  {message[: pos + 1]}{color}{'▉' * (length - pos - 1)}{RESET}"
         else:
-            text = f"  {color}{'▉' * (pos + 1)}{RESET}{message[pos + 1:]}"
+            text = f"  {color}{'▉' * (pos + 1)}{RESET}{message[pos + 1 :]}"
 
         sys.stdout.write(f"\r{text}")
         sys.stdout.flush()
@@ -222,8 +230,8 @@ def display_summary(parsed_data: ParsedValgrindReport) -> None:
     print(GREEN + "• Valgrind Report Summary :" + RESET)
     print()
 
-    summary = parsed_data.get('summary', {})
-    num_leaks = len(parsed_data.get('leaks', []))
+    summary = parsed_data.get("summary", {})
+    num_leaks = len(parsed_data.get("leaks", []))
 
     # Larger = slower blinking
     leak_word = "memory leak detected" if num_leaks == 1 else "memory leaks detected"

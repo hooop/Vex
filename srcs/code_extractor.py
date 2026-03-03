@@ -10,6 +10,7 @@ from typing import Optional
 
 from type_defs import StackFrame, ExtractedFunction
 
+
 def extract_function(filepath: str, line_number: int) -> Optional[str]:
     """
     Extract the complete function containing the specified line.
@@ -28,7 +29,7 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
             return None
 
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             lines = f.readlines()
     except (IOError, UnicodeDecodeError):
         return None
@@ -51,7 +52,7 @@ def extract_function(filepath: str, line_number: int) -> Optional[str]:
     for i in range(start_line, end_line + 1):
         line_num = i + 1
         result.append(f"{line_num}: {lines[i]}")
-    return ''.join(result)
+    return "".join(result)
 
 
 def _find_function_start(lines: list[str], from_line: int) -> Optional[int]:
@@ -70,17 +71,29 @@ def _find_function_start(lines: list[str], from_line: int) -> Optional[int]:
         line = lines[i].strip()
 
         # Skip empty lines and preprocessor directives
-        if not line or line.startswith('#'):
+        if not line or line.startswith("#"):
             continue
 
         # Function typically starts with opening brace
-        if line.endswith('{'):
+        if line.endswith("{"):
             # Go back to find the function signature
             func_start = i
-            while func_start > 0 and not lines[func_start - 1].strip().startswith(('static', 'void', 'int', 'char', 'float', 'double', 'long', 'short', 'unsigned')):
+            while func_start > 0 and not lines[func_start - 1].strip().startswith(
+                (
+                    "static",
+                    "void",
+                    "int",
+                    "char",
+                    "float",
+                    "double",
+                    "long",
+                    "short",
+                    "unsigned",
+                )
+            ):
                 func_start -= 1
                 # Stop if we hit an empty line or closing brace
-                if not lines[func_start].strip() or lines[func_start].strip() == '}':
+                if not lines[func_start].strip() or lines[func_start].strip() == "}":
                     func_start += 1
                     break
             return func_start
@@ -107,10 +120,10 @@ def _find_function_end(lines: list[str], start_line: int) -> Optional[int]:
 
         # Count braces
         for char in line:
-            if char == '{':
+            if char == "{":
                 brace_count += 1
                 found_opening = True
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
 
                 # Function ends when braces balance
@@ -145,18 +158,20 @@ def extract_call_stack(stack_frames: list[StackFrame]) -> list[ExtractedFunction
     # Process frames in reverse order (from main to problem)
     for frame in reversed(stack_frames):
         # Skip system functions (no file path or in system directories)
-        if not frame.get('file') or _is_system_file(frame['file']):
+        if not frame.get("file") or _is_system_file(frame["file"]):
             continue
 
-        code = extract_function(frame['file'], frame['line'])
+        code = extract_function(frame["file"], frame["line"])
 
         if code:
-            extracted.append({
-                'file': frame['file'],
-                'function': frame.get('function', 'unknown'),
-                'line': frame['line'],
-                'code': code
-            })
+            extracted.append(
+                {
+                    "file": frame["file"],
+                    "function": frame.get("function", "unknown"),
+                    "line": frame["line"],
+                    "code": code,
+                }
+            )
 
     return extracted
 
@@ -171,7 +186,7 @@ def _is_system_file(filepath: str) -> bool:
     Returns:
         True if it's a system file to skip
     """
-    system_paths = ['/usr/include/', '/usr/lib/', 'libc', 'libpthread']
+    system_paths = ["/usr/include/", "/usr/lib/", "libc", "libpthread"]
     return any(path in filepath for path in system_paths)
 
 
@@ -179,7 +194,7 @@ def _find_source_file(filename: str) -> Optional[str]:
     """
     Search for source file by intelligently traversing directory tree.
     Finds project root first, then searches recursively from there.
-    
+
     Args:
         filename: Name of the file to find (e.g., "push_swap_utils.c")
 
@@ -188,56 +203,59 @@ def _find_source_file(filename: str) -> Optional[str]:
     """
     import subprocess
     import os
-    
+
     basename = os.path.basename(filename)
-    
+
     # Project markers that indicate root directory
-    project_markers = ['Makefile', 'CMakeLists.txt', 'src', 'include', '.git']
-    
+    project_markers = ["Makefile", "CMakeLists.txt", "src", "include", ".git"]
+
     def find_project_root(start_dir):
         """Find project root by looking for markers, up to 3 levels up"""
         current = start_dir
         levels_checked = 0
-        
+
         while levels_checked < 3:
-            if any(os.path.exists(os.path.join(current, marker)) for marker in project_markers):
+            if any(
+                os.path.exists(os.path.join(current, marker))
+                for marker in project_markers
+            ):
                 return current
-            
+
             parent = os.path.dirname(current)
             if parent == current:  # Already at filesystem root
                 break
             current = parent
             levels_checked += 1
-        
+
         return start_dir  # Fallback to current directory
-    
+
     # Determine best search starting point
     search_root = find_project_root(os.getcwd())
-    
+
     # Build list of paths to search
     search_paths = [search_root]
-    
+
     # Add common source directories if they exist
-    for common_dir in ['src', 'source', 'sources', 'lib', 'include']:
+    for common_dir in ["src", "source", "sources", "lib", "include"]:
         candidate_path = os.path.join(search_root, common_dir)
         if os.path.exists(candidate_path) and os.path.isdir(candidate_path):
             search_paths.append(candidate_path)
-    
+
     # Search in each path
     for search_path in search_paths:
         try:
             result = subprocess.run(
-                ['find', search_path, '-name', basename, '-type', 'f'],
+                ["find", search_path, "-name", basename, "-type", "f"],
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=2,
             )
-            
+
             if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip().split('\n')[0]
+                return result.stdout.strip().split("\n")[0]
         except (subprocess.TimeoutExpired, subprocess.SubprocessError):
             continue
-    
+
     return None
 
 
@@ -261,7 +279,7 @@ def format_for_ai(extracted_functions: list[ExtractedFunction]) -> str:
         output.append(f"\n--- Function {i}: {func['function']} ---")
         output.append(f"File: {func['file']}")
         output.append(f"Line: {func['line']}\n")
-        output.append(func['code'])
+        output.append(func["code"])
         output.append("\n")
 
-    return '\n'.join(output)
+    return "\n".join(output)

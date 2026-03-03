@@ -14,6 +14,7 @@ Features:
 import os
 import subprocess
 
+
 class ValgrindError(Exception):
     """Raised when Valgrind execution fails."""
 
@@ -27,30 +28,27 @@ class ExecutableNotFoundError(Exception):
 
 
 def check_valgrind_installed() -> bool:
-	"""
+    """
     Check if Valgrind is installed on the system.
 
     Returns:
         True if Valgrind is installed, False otherwise.
     """
-      
-	try:
-		# Try to execute valgrind --version
-		result = subprocess.run(
-			["valgrind", "--version"],
-			capture_output=True,
-			text=True,
-			timeout=5
-		)
-		return result.returncode == 0
-	except FileNotFoundError:
-		return False
-	except subprocess.TimeoutExpired:
-		return False
+
+    try:
+        # Try to execute valgrind --version
+        result = subprocess.run(
+            ["valgrind", "--version"], capture_output=True, text=True, timeout=5
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def check_executable_exists(executable_path: str) -> bool:
-	"""
+    """
     Check if executable exists and is a valid file.
 
     Args:
@@ -59,18 +57,18 @@ def check_executable_exists(executable_path: str) -> bool:
     Returns:
         True if file exists and is executable, False otherwise.
     """
-      
-	if not os.path.exists(executable_path):
-		return False
 
-	if not os.path.isfile(executable_path):
-		return False
+    if not os.path.exists(executable_path):
+        return False
 
-	# Check if file has execution permissions
-	if not os.access(executable_path, os.X_OK):
-		return False
+    if not os.path.isfile(executable_path):
+        return False
 
-	return True
+    # Check if file has execution permissions
+    if not os.access(executable_path, os.X_OK):
+        return False
+
+    return True
 
 
 def run_valgrind(executable_path: str) -> str:
@@ -112,9 +110,7 @@ def run_valgrind(executable_path: str) -> str:
                 f"Executable '{actual_executable}' does not exist."
             )
         elif not os.path.isfile(actual_executable):
-            raise ExecutableNotFoundError(
-                f"'{actual_executable}' is not a file."
-            )
+            raise ExecutableNotFoundError(f"'{actual_executable}' is not a file.")
         else:
             raise ExecutableNotFoundError(
                 f"'{actual_executable}' does not have execution permissions.\n"
@@ -124,11 +120,11 @@ def run_valgrind(executable_path: str) -> str:
     # Build Valgrind command
     command = [
         "valgrind",
-        "--leak-check=full",            # Complete leak detection
-        "--track-origins=yes",          # Trace origin of uninitialized values
-        "--show-leak-kinds=all",        # Display all leak types
-        "--verbose",                    # Verbose mode for more details
-    ] + command_parts                   # Add executable and its arguments
+        "--leak-check=full",  # Complete leak detection
+        "--track-origins=yes",  # Trace origin of uninitialized values
+        "--show-leak-kinds=all",  # Display all leak types
+        "--verbose",  # Verbose mode for more details
+    ] + command_parts  # Add executable and its arguments
 
     try:
         # Execute Valgrind
@@ -137,7 +133,7 @@ def run_valgrind(executable_path: str) -> str:
             command,
             capture_output=True,
             text=True,
-            timeout=30  # 30 second timeout to avoid hanging
+            timeout=30,  # 30 second timeout to avoid hanging
         )
 
         # Valgrind writes its report to stderr
@@ -160,6 +156,4 @@ def run_valgrind(executable_path: str) -> str:
         )
 
     except Exception as e:
-        raise ValgrindError(
-            f"Valgrind execution failed: {str(e)}"
-        )
+        raise ValgrindError(f"Valgrind execution failed: {str(e)}")

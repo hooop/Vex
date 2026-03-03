@@ -18,8 +18,8 @@ import random
 # =========================
 WIDTH = 18
 HEIGHT = 14
-SPEED = 0.05           # Time between each frame (seconds)
-SPAWN_DELAY = 2        # Delay between wave spawns (frames)
+SPEED = 0.05  # Time between each frame (seconds)
+SPAWN_DELAY = 2  # Delay between wave spawns (frames)
 CHAR_ON = "∎∎"
 CHAR_OFF = "∎∎"
 CHAR_LOGO = "██"
@@ -42,12 +42,12 @@ LOGO = [
     [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
     [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
     [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1],
 ]
 
 # Logo timing
-LOGO_START_DELAY = 1.3    # Seconds before logo starts appearing
-LOGO_DURATION = 0.5       # Seconds to display full logo
+LOGO_START_DELAY = 1.3  # Seconds before logo starts appearing
+LOGO_DURATION = 0.5  # Seconds to display full logo
 
 
 def _calculate_logo_pixels() -> set:
@@ -85,7 +85,7 @@ def play_mistral_animation(duration: float = 2.0) -> None:
     logo_pixels_shown = set()
     total_logo_pixels = len(logo_pixels)
 
-    waves = []              # Active wave radiuses
+    waves = []  # Active wave radiuses
     frame = 0
     start_time = time.time()
 
@@ -101,8 +101,9 @@ def play_mistral_animation(duration: float = 2.0) -> None:
             waves.append(0)
 
         # Create empty grid
-        grid = [[LIGHT_PINK + CHAR_OFF + RESET for _ in range(WIDTH)]
-                for _ in range(HEIGHT)]
+        grid = [
+            [LIGHT_PINK + CHAR_OFF + RESET for _ in range(WIDTH)] for _ in range(HEIGHT)
+        ]
 
         # Draw active waves
         new_waves = []
@@ -147,7 +148,7 @@ def play_mistral_animation(duration: float = 2.0) -> None:
                     remaining_pixels.remove(pixel)
 
         # Draw revealed logo pixels
-        for (lx, ly) in logo_pixels_shown:
+        for lx, ly in logo_pixels_shown:
             grid[ly][lx] = BLACK_BLOCK
 
         # Display grid

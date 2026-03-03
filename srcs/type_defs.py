@@ -10,12 +10,14 @@ from typing import TypedDict, Optional
 
 class BuildResult(TypedDict):
     """Result of a project rebuild attempt."""
+
     success: bool
     output: str
 
 
 class StackFrame(TypedDict):
     """Single frame from a Valgrind call stack."""
+
     file: str
     function: str
     line: int
@@ -23,6 +25,7 @@ class StackFrame(TypedDict):
 
 class ExtractedFunction(TypedDict):
     """Function extracted from source code with its context."""
+
     file: str
     function: str
     line: int
@@ -31,6 +34,7 @@ class ExtractedFunction(TypedDict):
 
 class ProcessedFunction(TypedDict):
     """Function prepared for memory tracking algorithm."""
+
     function: str
     lines: list[str]
     start_line: int
@@ -39,12 +43,14 @@ class ProcessedFunction(TypedDict):
 
 class ContributingCode(TypedDict):
     """Contributing line of code that led to a memory leak."""
+
     code: str
     comment: str
 
 
 class ValgrindSummary(TypedDict):
     """Summary statistics from Valgrind leak report."""
+
     definitely_lost: int
     indirectly_lost: int
     possibly_lost: int
@@ -54,6 +60,7 @@ class ValgrindSummary(TypedDict):
 
 class RootCauseInfo(TypedDict):
     """Root cause information identified by tracking algorithm."""
+
     leak_type: int
     line: str
     function: str
@@ -63,6 +70,7 @@ class RootCauseInfo(TypedDict):
 
 class RealCause(TypedDict):
     """Detailed information about the actual root cause of a leak."""
+
     file: str
     function: str
     owner: str
@@ -73,15 +81,18 @@ class RealCause(TypedDict):
     context_after_code: str
 
 
-class TrackingEntry(TypedDict):
+class TrackingEntry(TypedDict, total=False):
     """Tracked path to allocated memory during leak analysis."""
+
     target: str
     segments: list[str]
     origin: Optional[str]
+    in_structure: bool
 
 
 class ValgrindError(TypedDict):
     """Individual memory leak information parsed from Valgrind output."""
+
     type: str
     bytes: int
     blocks: int
@@ -96,6 +107,7 @@ class ValgrindError(TypedDict):
 
 class MistralAnalysis(TypedDict, total=False):
     """Structured analysis result from Mistral AI."""
+
     leak_type: int
     diagnosis: str
     reasoning: list[str]
@@ -108,6 +120,7 @@ class MistralAnalysis(TypedDict, total=False):
 
 class ParsedValgrindReport(TypedDict):
     """Complete parsed Valgrind report structure."""
+
     has_leaks: bool
     summary: ValgrindSummary
     leaks: list[ValgrindError]
@@ -115,12 +128,14 @@ class ParsedValgrindReport(TypedDict):
 
 class CodeLineInfo(TypedDict):
     """Information about a single code line."""
+
     line: int
     code: str
 
 
 class ContributingLineInfo(TypedDict):
     """Contributing code line with comment."""
+
     line: int
     code: str
     comment: str
@@ -128,6 +143,7 @@ class ContributingLineInfo(TypedDict):
 
 class CleanedCodeLines(TypedDict):
     """Cleaned and sorted code lines with line numbers."""
+
     root_line: int
     root_code: str
     root_comment: str
@@ -140,8 +156,10 @@ class CleanedCodeLines(TypedDict):
 # GDB TRACING TYPES
 # =============================================================================
 
+
 class TraceStep(TypedDict):
     """Single step in a GDB execution trace."""
+
     file: str
     line: int
     function: str
@@ -150,6 +168,7 @@ class TraceStep(TypedDict):
 
 class FreeEvent(TypedDict):
     """Record of a free() call on the tracked address."""
+
     caller_file: str
     caller_line: int
     caller_function: str
@@ -157,6 +176,7 @@ class FreeEvent(TypedDict):
 
 class GdbTraceResult(TypedDict):
     """Complete result from a GDB pointer tracing session."""
+
     success: bool
     trace: list[TraceStep]
     tracked_address: str

@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 from typing import Optional
 
-from type_defs import GdbTraceResult, TraceStep, FreeEvent
+from type_defs import GdbTraceResult, TraceStep
 
 # Sentinel markers used to delimit JSON output in GDB's stdout.
 _TRACE_BEGIN = "VEX_TRACE_BEGIN"
@@ -29,6 +29,7 @@ _TRACE_END = "VEX_TRACE_END"
 # =============================================================================
 # PUBLIC API
 # =============================================================================
+
 
 def trace_pointer(
     executable: str,
@@ -65,8 +66,12 @@ def trace_pointer(
     """
     # Generate the GDB Python script.
     script = _generate_gdb_script(
-        alloc_file, alloc_line, alloc_var, backtrace_functions,
-        caller_file, caller_line,
+        alloc_file,
+        alloc_line,
+        alloc_var,
+        backtrace_functions,
+        caller_file,
+        caller_line,
     )
 
     # Run GDB in batch mode.
@@ -105,6 +110,7 @@ def check_gdb_available() -> bool:
 # =============================================================================
 # GDB SCRIPT GENERATION
 # =============================================================================
+
 
 def _generate_gdb_script(
     alloc_file: str,
@@ -431,32 +437,42 @@ def run_trace():
             break  # Program has likely exited.
 
         # --- Inject missing call site on function return -----------------
-        #     When GDB returns from callee to caller, it lands on the line
-        #     AFTER the call site.  The assignment line (e.g.
-        #     ``ptr = callee()``) is skipped.  We look backwards up to
-        #     3 lines to find and inject it into the trace.
+        #     When GDB returns from callee to caller, it sometimes lands
+        #     on the call site line itself (the assignment with the
+        #     function call) and sometimes on the NEXT line.
+        #
+        #     If the current line IS the call site, normal recording
+        #     below will capture it — no injection needed.
+        #     If the current line is AFTER the call site, we look
+        #     backwards up to 3 lines to find and inject it.
         if (prev_func is not None
                 and func != prev_func
                 and is_user_code()):
             ret_file, ret_line = current_source_info()
             if ret_file and ret_line and ret_line > 1:
-                for offset in range(1, 4):
-                    check_line = ret_line - offset
-                    if check_line < 1:
-                        break
-                    call_code = read_source_line_gdb(ret_file, check_line)
-                    if call_code and '=' in call_code and (prev_func + '(') in call_code:
-                        if (not trace
-                                or trace[-1]["line"] != check_line
-                                or trace[-1]["function"] != func
-                                or trace[-1]["file"] != ret_file):
-                            trace.append({{
-                                "file": ret_file,
-                                "line": check_line,
-                                "function": func,
-                                "code": "",
-                            }})
-                        break
+                cur_code = read_source_line_gdb(ret_file, ret_line)
+                current_is_call_site = (
+                    cur_code and '=' in cur_code
+                    and (prev_func + '(') in cur_code
+                )
+                if not current_is_call_site:
+                    for offset in range(1, 4):
+                        check_line = ret_line - offset
+                        if check_line < 1:
+                            break
+                        call_code = read_source_line_gdb(ret_file, check_line)
+                        if call_code and '=' in call_code and (prev_func + '(') in call_code:
+                            if (not trace
+                                    or trace[-1]["line"] != check_line
+                                    or trace[-1]["function"] != func
+                                    or trace[-1]["file"] != ret_file):
+                                trace.append({{
+                                    "file": ret_file,
+                                    "line": check_line,
+                                    "function": func,
+                                    "code": "",
+                                }})
+                            break
 
         # --- Scan parameters on function entry ----------------------------
         #     When stepping into a new function (not a return — returns
@@ -592,6 +608,7 @@ gdb.execute("quit")
 # GDB EXECUTION
 # =============================================================================
 
+
 def _run_gdb(executable: str, script_content: str) -> Optional[str]:
     """
     Execute GDB in batch mode with the given Python script.
@@ -608,18 +625,17 @@ def _run_gdb(executable: str, script_content: str) -> Optional[str]:
 
     try:
         # Write script to a temporary file.
-        script_fd, script_path = tempfile.mkstemp(
-            suffix=".py", prefix="vex_gdb_"
-        )
+        script_fd, script_path = tempfile.mkstemp(suffix=".py", prefix="vex_gdb_")
         with os.fdopen(script_fd, "w") as f:
             f.write(script_content)
         script_fd = None  # Ownership transferred to the with-block.
 
         command = [
             "gdb",
-            "--batch",          # Exit after script completes.
-            "--quiet",          # Suppress banner.
-            "-x", script_path,  # Load our script.
+            "--batch",  # Exit after script completes.
+            "--quiet",  # Suppress banner.
+            "-x",
+            script_path,  # Load our script.
             executable,
         ]
 
@@ -646,6 +662,7 @@ def _run_gdb(executable: str, script_content: str) -> Optional[str]:
 # OUTPUT PARSING
 # =============================================================================
 
+
 def _parse_trace_output(raw_output: str) -> Optional[GdbTraceResult]:
     """
     Extract the JSON payload emitted between sentinel markers.
@@ -663,7 +680,7 @@ def _parse_trace_output(raw_output: str) -> Optional[GdbTraceResult]:
     if begin_idx == -1 or end_idx == -1 or end_idx <= begin_idx:
         return None
 
-    json_str = raw_output[begin_idx + len(_TRACE_BEGIN):end_idx].strip()
+    json_str = raw_output[begin_idx + len(_TRACE_BEGIN) : end_idx].strip()
 
     try:
         data = json.loads(json_str)
@@ -760,6 +777,7 @@ def _resolve_trace_code(trace: list[TraceStep]) -> None:
 # =============================================================================
 # HELPERS
 # =============================================================================
+
 
 def _error_result(message: str) -> GdbTraceResult:
     """Build a failure ``GdbTraceResult``."""

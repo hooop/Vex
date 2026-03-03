@@ -17,19 +17,25 @@ from typing import Optional
 
 from builder import rebuild_project
 from code_extractor import extract_call_stack
-from colors import RESET, DARK_GREEN, RED
-from display import display_analysis, display_leak_menu
+from colors import RESET, RED
+from display import display_analysis
 from gdb_tracer import trace_pointer, check_gdb_available
 from memory_tracker import (
-    find_root_cause, find_root_cause_from_trace,
-    convert_extracted_code, extract_left_side, is_malloc,
+    find_root_cause,
+    find_root_cause_from_trace,
+    convert_extracted_code,
+    extract_left_side,
+    is_malloc,
 )
 from menu import interactive_menu
 from mistral_analyzer import analyze_with_mistral, MistralAPIError
-from mistral_animation import play_mistral_animation
-from type_defs import ParsedValgrindReport, ValgrindError, BuildResult
+from type_defs import ParsedValgrindReport, ValgrindError
 from valgrind_parser import parse_valgrind_report
-from valgrind_runner import run_valgrind, ExecutableNotFoundError, ValgrindError as ValgrindRunnerError
+from valgrind_runner import (
+    run_valgrind,
+    ExecutableNotFoundError,
+    ValgrindError as ValgrindRunnerError,
+)
 from welcome import (
     clear_screen,
     display_logo,
@@ -37,17 +43,18 @@ from welcome import (
     stop_spinner,
     start_block_spinner,
     stop_block_spinner,
-    display_summary
+    display_summary,
 )
 
 # Return codes
 SUCCESS = 0
 ERROR = 1
 
+
 def print_error(message: str) -> None:
     """
     Display a formatted error message.
-    
+
     Args:
         message: Error message to display.
     """
@@ -55,7 +62,9 @@ def print_error(message: str) -> None:
     print(f"\nError : {message}\n", file=sys.stderr)
 
 
-def _run_valgrind_analysis(executable: str, program_args: list[str]) -> ParsedValgrindReport:
+def _run_valgrind_analysis(
+    executable: str, program_args: list[str]
+) -> ParsedValgrindReport:
     """
     Execute Valgrind and parse the report.
 
@@ -85,7 +94,9 @@ def _run_valgrind_analysis(executable: str, program_args: list[str]) -> ParsedVa
     return parsed_data
 
 
-def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> Optional[tuple[list[ValgrindError], int]]:
+def _reanalyze_after_compilation(
+    full_command: str, initial_leak_count: int
+) -> Optional[tuple[list[ValgrindError], int]]:
     """
     Re-run Valgrind after compilation and display delta.
 
@@ -112,7 +123,7 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
     stop_spinner(t, "Parsing report")
 
     # Check if leaks remain
-    new_leak_count = len(parsed_data.get('leaks', []))
+    new_leak_count = len(parsed_data.get("leaks", []))
 
     if new_leak_count == 0:
         print(f"\n{RED}All leaks resolved !{RESET}\n")
@@ -130,7 +141,7 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
         print(f"\n{RED}Still {new_leak_count} {detected_word}{RESET}")
 
     # Update data
-    parsed_errors = parsed_data.get('leaks', [])
+    parsed_errors = parsed_data.get("leaks", [])
 
     # Display Valgrind summary
     display_summary(parsed_data)
@@ -150,20 +161,20 @@ def _reanalyze_after_compilation(full_command: str, initial_leak_count: int) -> 
 def _extract_source_code(parsed_errors: list[ValgrindError]) -> None:
     """
     Extract source code for each leak if not already done.
-    
+
     Args:
         parsed_errors: List of parsed Valgrind errors.
     """
 
-    if not parsed_errors[0].get('extracted_code'):
+    if not parsed_errors[0].get("extracted_code"):
         clear_screen()
         t = start_spinner("Extracting source code")
 
         for error in parsed_errors:
-            if 'backtrace' in error and error['backtrace']:
-                error['extracted_code'] = extract_call_stack(error['backtrace'])
+            if "backtrace" in error and error["backtrace"]:
+                error["extracted_code"] = extract_call_stack(error["backtrace"])
             else:
-                error['extracted_code'] = []
+                error["extracted_code"] = []
 
         stop_spinner(t, "Extracting source code")
 
@@ -189,7 +200,7 @@ def _find_root_causes(
     t = start_spinner("Analyzing memory paths")
 
     for error in parsed_errors:
-        if not error.get('extracted_code'):
+        if not error.get("extracted_code"):
             continue
 
         root_cause = None
@@ -203,17 +214,17 @@ def _find_root_causes(
             root_cause = _try_static_analysis(error)
 
         if root_cause:
-            error['root_cause'] = {
-                'type': root_cause["leak_type"],
-                'line': root_cause["line"],
-                'line_number': root_cause.get("line_number"),
-                'function': root_cause["function"],
-                'file': root_cause["file"],
-                'steps': root_cause["steps"],
-                'gdb_trace': root_cause.get("gdb_trace"),
+            error["root_cause"] = {
+                "type": root_cause["leak_type"],
+                "line": root_cause["line"],
+                "line_number": root_cause.get("line_number"),
+                "function": root_cause["function"],
+                "file": root_cause["file"],
+                "steps": root_cause["steps"],
+                "gdb_trace": root_cause.get("gdb_trace"),
             }
         else:
-            error['root_cause'] = None
+            error["root_cause"] = None
 
     stop_spinner(t, "Analyzing memory paths")
 
@@ -236,16 +247,16 @@ def _try_gdb_trace(
         A ``RootCauseInfo`` dict on success, or ``None`` on failure.
     """
     try:
-        backtrace = error.get('backtrace', [])
-        extracted_code = error.get('extracted_code', [])
+        backtrace = error.get("backtrace", [])
+        extracted_code = error.get("extracted_code", [])
 
         if not backtrace or not extracted_code:
             return None
 
         # The innermost frame (last in reversed backtrace) has the malloc.
         alloc_frame = backtrace[-1]
-        alloc_file = alloc_frame['file']
-        alloc_line = alloc_frame['line']
+        alloc_file = alloc_frame["file"]
+        alloc_line = alloc_frame["line"]
 
         # The caller frame (one level above) disambiguates when the
         # same allocation function is called from multiple sites.
@@ -253,23 +264,27 @@ def _try_gdb_trace(
         caller_line = 0
         if len(backtrace) >= 2:
             caller_frame = backtrace[-2]
-            caller_file = caller_frame['file']
-            caller_line = caller_frame['line']
+            caller_file = caller_frame["file"]
+            caller_line = caller_frame["line"]
 
         # Extract the variable from the first function's code.
-        alloc_var = _extract_alloc_variable(extracted_code)
+        alloc_var = _extract_alloc_variable(extracted_code, alloc_line)
         if not alloc_var:
             return None
 
         # Function names from the backtrace (innermost → outermost).
-        backtrace_functions = [
-            frame['function'] for frame in reversed(backtrace)
-        ]
+        backtrace_functions = [frame["function"] for frame in reversed(backtrace)]
+
+
 
         trace_result = trace_pointer(
-            executable, alloc_file, alloc_line,
-            alloc_var, backtrace_functions,
-            caller_file, caller_line,
+            executable,
+            alloc_file,
+            alloc_line,
+            alloc_var,
+            backtrace_functions,
+            caller_file,
+            caller_line,
         )
 
         if not trace_result["success"] or not trace_result["trace"]:
@@ -298,7 +313,7 @@ def _try_static_analysis(error: ValgrindError) -> Optional[dict]:
         A ``RootCauseInfo`` dict on success, or ``None`` on failure.
     """
     try:
-        converted = convert_extracted_code(error['extracted_code'])
+        converted = convert_extracted_code(error["extracted_code"])
         return find_root_cause(converted)
     except Exception:
         return None
@@ -306,16 +321,19 @@ def _try_static_analysis(error: ValgrindError) -> Optional[dict]:
 
 def _extract_alloc_variable(
     extracted_code: list,
+    alloc_line: int = 0,
 ) -> Optional[str]:
     """
     Determine which variable receives the ``malloc`` return value.
 
-    Scans the first extracted function (the allocation site) for a line
-    containing ``malloc(`` and extracts the left-hand side of the
-    assignment.
+    When *alloc_line* is provided (from Valgrind's backtrace), match that
+    specific line number so the correct allocation is selected even when a
+    function contains multiple ``malloc`` calls.  Falls back to the first
+    ``malloc`` found if the line number cannot be matched.
 
     Args:
         extracted_code: List of ``ExtractedFunction`` dicts.
+        alloc_line:     Source line number reported by Valgrind (0 = any).
 
     Returns:
         Variable name (e.g. ``"ptr"`` or ``"n->data"``), or ``None``.
@@ -323,21 +341,32 @@ def _extract_alloc_variable(
     if not extracted_code:
         return None
 
-    # The allocation function is the last one (innermost in backtrace,
-    # but extract_call_stack reverses so it may be first or last depending
-    # on ordering).  Scan all functions for the malloc line.
+    fallback = None
+
     for func in extracted_code:
-        for code_line in func.get('code', '').split('\n'):
+        for code_line in func.get("code", "").split("\n"):
             # Strip line number prefix  "23: code..." → "code..."
-            if ':' in code_line:
-                actual_code = code_line[code_line.index(':') + 1:]
+            line_num = 0
+            if ":" in code_line:
+                prefix = code_line[: code_line.index(":")].strip()
+                try:
+                    line_num = int(prefix)
+                except ValueError:
+                    pass
+                actual_code = code_line[code_line.index(":") + 1 :]
             else:
                 actual_code = code_line
 
             if is_malloc(actual_code):
-                return extract_left_side(actual_code)
+                var = extract_left_side(actual_code)
+                # Exact line match → return immediately
+                if alloc_line and line_num == alloc_line:
+                    return var
+                # Remember first malloc as fallback
+                if fallback is None:
+                    fallback = var
 
-    return None
+    return fallback
 
 
 def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> str:
@@ -359,17 +388,16 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
 
     for i, error in enumerate(parsed_errors, 1):
         try:
-
             # Hide cursor before spinner
             print("\033[?25l", end="", flush=True)
 
             # Start spinner for this leak
             t = start_block_spinner("Calling Mistral AI")
             time.sleep(0.1)
-            
+
             # Analyze error
             analysis = analyze_with_mistral(error)
-            
+
             # Stop spinner after analysis
             stop_block_spinner(t, "Calling Mistral AI")
 
@@ -379,13 +407,23 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
             show_details = False
 
             while True:
-                display_analysis(error, analysis, error_number=i, total_errors=len(parsed_errors), show_details=show_details)
+                display_analysis(
+                    error,
+                    analysis,
+                    error_number=i,
+                    total_errors=len(parsed_errors),
+                    show_details=show_details,
+                )
 
                 # Menu after each leak (d = toggle details)
-                options = ["Verify", "Next leak", "Quit Vex"] if len(parsed_errors) > 1 else ["Verify", "Quit Vex"]
-                menu_choice = interactive_menu(options, hotkeys={'d'})
+                options = (
+                    ["Verify", "Next leak", "Quit Vex"]
+                    if len(parsed_errors) > 1
+                    else ["Verify", "Quit Vex"]
+                )
+                menu_choice = interactive_menu(options, hotkeys={"d"})
 
-                if menu_choice == 'd':
+                if menu_choice == "d":
                     # Toggle details and redisplay
                     show_details = not show_details
                     clear_screen()
@@ -398,8 +436,8 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
             if choice == "verify":
                 # Recompile
                 result = rebuild_project(executable)
-                if not result['success']:
-                    print(result['output'])
+                if not result["success"]:
+                    print(result["output"])
                     input("\n[Press Enter to continue...]]")
                     continue
 
@@ -427,6 +465,7 @@ def _process_all_leaks(parsed_errors: list[ValgrindError], executable: str) -> s
     # If we reach here, all leaks processed
     return "completed"
 
+
 def _parse_command_line() -> tuple[str, list[str], str]:
     """
     Parse command line arguments.
@@ -444,6 +483,7 @@ def _parse_command_line() -> tuple[str, list[str], str]:
         full_command += " " + " ".join(program_args)
 
     return (executable, program_args, full_command)
+
 
 def main() -> int:
     """
@@ -469,13 +509,13 @@ def main() -> int:
         display_logo()
 
         # Pre-import mistralai in background (heavy import: ~4s on ARM/Docker)
-        threading.Thread(target=lambda: __import__('mistralai'), daemon=True).start()
+        threading.Thread(target=lambda: __import__("mistralai"), daemon=True).start()
 
         # Valgrind analysis, returns dictionary with all leaks
         parsed_data = _run_valgrind_analysis(executable, program_args)
 
         # If leak list is empty, exit
-        parsed_errors = parsed_data.get('leaks', [])
+        parsed_errors = parsed_data.get("leaks", [])
         if not parsed_errors:
             print("\nNo memory leaks detected !\n")
             return SUCCESS
@@ -486,7 +526,6 @@ def main() -> int:
         # Show real cursor
         print("\033[?25h", end="", flush=True)
 
-        
         # Afficher le menu
         choice = interactive_menu(["Start analysis", "Quit Vex"])
 
@@ -505,7 +544,6 @@ def main() -> int:
         need_reanalysis = False
 
         while True:
-
             # If need to re-analyze (after [v])
             if need_reanalysis:
                 result = _reanalyze_after_compilation(full_command, initial_leak_count)
@@ -554,6 +592,7 @@ def main() -> int:
     except Exception as e:
         print_error(f"Unexpected error : {e}")
         import traceback
+
         traceback.print_exc()
         return ERROR
 

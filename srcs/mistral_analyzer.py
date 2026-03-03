@@ -29,10 +29,10 @@ def analyze_with_mistral(error_data: ValgrindError) -> MistralAnalysis:
     """
     try:
         # Format extracted code
-        code_context = _format_extracted_code(error_data.get('extracted_code', []))
+        code_context = _format_extracted_code(error_data.get("extracted_code", []))
 
         # Get root cause (computed by memory_tracker)
-        root_cause = error_data.get('root_cause', None)
+        root_cause = error_data.get("root_cause", None)
 
         # Call Mistral API via mistral_api.py
         analysis = analyze_memory_leak(error_data, code_context, root_cause)
@@ -52,23 +52,23 @@ def _format_extracted_code(extracted_code: list[ExtractedFunction]) -> str:
     Returns:
         Formatted string with numbered functions and their source code.
     """
-    
+
     if not extracted_code:
         return "=== No source code available ===\n"
 
     formatted = "=== CALL STACK WITH SOURCE CODE ===\n\n"
 
     for i, frame in enumerate(extracted_code, 1):
-        code_lines = frame['code'].strip().split('\n')
-        last_line_num = code_lines[-1].split(':')[0] if code_lines else '?'
+        code_lines = frame["code"].strip().split("\n")
+        last_line_num = code_lines[-1].split(":")[0] if code_lines else "?"
 
-        formatted += f"{'='*50}\n"
+        formatted += f"{'=' * 50}\n"
         formatted += f"FUNCTION {i}: {frame['function']}\n"
         formatted += f"File: {frame['file']}\n"
         formatted += f"Starts at line: {frame['line']}\n"
         formatted += f"Function ends: line {last_line_num}\n"
-        formatted += f"{'='*50}\n"
-        formatted += frame['code']
+        formatted += f"{'=' * 50}\n"
+        formatted += frame["code"]
         formatted += "\n\n"
 
     return formatted

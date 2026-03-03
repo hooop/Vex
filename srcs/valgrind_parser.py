@@ -8,7 +8,7 @@ Detects leaks, parses summary statistics, and extracts detailed leak entries.
 import re
 from typing import Optional
 
-from type_defs import ParsedValgrindReport, ValgrindSummary, ValgrindError, StackFrame
+from type_defs import ParsedValgrindReport, ValgrindSummary, ValgrindError
 
 
 def parse_valgrind_report(report: str) -> ParsedValgrindReport:
@@ -36,9 +36,9 @@ def parse_valgrind_report(report: str) -> ParsedValgrindReport:
             "indirectly_lost": 0,
             "possibly_lost": 0,
             "still_reachable": 0,
-            "total_leaked": 0
+            "total_leaked": 0,
         },
-        "leaks": []
+        "leaks": [],
     }
 
     # Quick check: are there any leaks?
@@ -49,7 +49,7 @@ def parse_valgrind_report(report: str) -> ParsedValgrindReport:
     summary = _extract_leak_summary(report)
     if summary:
         result["summary"] = summary
-        
+
         # If definitely_lost or indirectly_lost > 0, we have leaks
         if summary["definitely_lost"] > 0 or summary["indirectly_lost"] > 0:
             result["has_leaks"] = True
@@ -90,7 +90,7 @@ def _extract_leak_summary(report: str) -> Optional[ValgrindSummary]:
         "indirectly_lost": 0,
         "possibly_lost": 0,
         "still_reachable": 0,
-        "total_leaked": 0
+        "total_leaked": 0,
     }
 
     # Pattern to extract each summary line
@@ -100,7 +100,9 @@ def _extract_leak_summary(report: str) -> Optional[ValgrindSummary]:
     matches = re.finditer(line_pattern, report)
 
     for match in matches:
-        leak_type = match.group(1).replace(" ", "_")  # "definitely lost" -> "definitely_lost"
+        leak_type = match.group(1).replace(
+            " ", "_"
+        )  # "definitely lost" -> "definitely_lost"
         bytes_leaked = int(match.group(2))
 
         if leak_type in summary:
@@ -130,7 +132,6 @@ def _extract_individual_leaks(report: str) -> list[ValgrindError]:
 
     leaks = []
 
-
     # Pattern to detect leak start
     # Example: "==28== 24 bytes in 1 blocks are definitely lost in loss record 1 of 2"
     leak_header_pattern = r"==\d+==\s+(\d+)(?:\s+\([^)]+\))?\s+bytes in\s+(\d+)\s+blocks? (?:is |are )(definitely|possibly) lost"
@@ -157,7 +158,7 @@ def _extract_individual_leaks(report: str) -> list[ValgrindError]:
             "file": location_info.get("file", "unknown"),
             "line": location_info.get("line", 0),
             "function": location_info.get("function", "unknown"),
-            "backtrace": location_info.get("backtrace", [])
+            "backtrace": location_info.get("backtrace", []),
         }
 
         leaks.append(leak_entry)
@@ -182,30 +183,38 @@ def _parse_leak_location(report: str, start_pos: int) -> dict:
     """
 
     # System functions to ignore
-    SYSTEM_FUNCTIONS = {'malloc', 'calloc', 'realloc', 'free', 'strdup',
-                        'memcpy', 'memmove', 'memset'}
+    SYSTEM_FUNCTIONS = {
+        "malloc",
+        "calloc",
+        "realloc",
+        "free",
+        "strdup",
+        "memcpy",
+        "memmove",
+        "memset",
+    }
 
-    excerpt = report[start_pos:start_pos + 1000]
-    lines = excerpt.split('\n')
+    excerpt = report[start_pos : start_pos + 1000]
+    lines = excerpt.split("\n")
     relevant_lines = []
     started = False
 
     for line in lines:
-        if re.search(r'(?:at|by)\s+0x[0-9A-Fa-f]+:', line):
+        if re.search(r"(?:at|by)\s+0x[0-9A-Fa-f]+:", line):
             relevant_lines.append(line)
             started = True
-        elif started and (line.strip() == '' or re.match(r'==\d+==\s*$', line)):
+        elif started and (line.strip() == "" or re.match(r"==\d+==\s*$", line)):
             break
         elif started:
             relevant_lines.append(line)
 
-    excerpt = '\n'.join(relevant_lines)
+    excerpt = "\n".join(relevant_lines)
     location_pattern = r"(?:at|by)\s+0x[0-9A-Fa-f]+:\s+(\w+)\s+\(([^:)]+):(\d+)\)"
     matches = re.finditer(location_pattern, excerpt)
 
     backtrace = []
     allocation_line = None
-    
+
     for match in matches:
         function = match.group(1)
         file = match.group(2)
@@ -222,11 +231,7 @@ def _parse_leak_location(report: str, start_pos: int) -> dict:
         if file.startswith("/usr/") or file.startswith("vg_"):
             continue
 
-        backtrace.append({
-            "function": function,
-            "file": file,
-            "line": line
-        })
+        backtrace.append({"function": function, "file": file, "line": line})
 
     backtrace.reverse()
 
@@ -237,7 +242,7 @@ def _parse_leak_location(report: str, start_pos: int) -> dict:
             "file": last["file"],
             "line": last["line"],
             "backtrace": backtrace,
-            "allocation_line": allocation_line
+            "allocation_line": allocation_line,
         }
 
     return {
@@ -245,5 +250,5 @@ def _parse_leak_location(report: str, start_pos: int) -> dict:
         "file": "unknown",
         "line": 0,
         "backtrace": [],
-        "allocation_line": allocation_line
+        "allocation_line": allocation_line,
     }

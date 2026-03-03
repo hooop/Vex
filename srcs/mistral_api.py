@@ -37,21 +37,21 @@ def _get_client():
 def _clean_json_response(response: str) -> str:
     """
     Clean API response to extract pure JSON.
-    
+
     Args:
         response: Raw response string from Mistral API.
-        
+
     Returns:
         Cleaned JSON string ready for parsing.
     """
-    
+
     response = response.strip()
 
     if "```" in response:
-        start = response.find('{')
-        end = response.rfind('}')
+        start = response.find("{")
+        end = response.rfind("}")
         if start != -1 and end != -1:
-            response = response[start:end+1]
+            response = response[start : end + 1]
 
     return response.strip()
 
@@ -59,7 +59,7 @@ def _clean_json_response(response: str) -> str:
 def analyze_memory_leak(
     error_data: ValgrindError,
     code_context: str,
-    root_cause: Optional[RootCauseInfo] = None
+    root_cause: Optional[RootCauseInfo] = None,
 ) -> MistralAnalysis:
     """
     Analyze a memory leak using Mistral AI.
@@ -76,6 +76,8 @@ def analyze_memory_leak(
     try:
         prompt = _build_prompt(error_data, code_context, root_cause)
 
+
+
         response = _call_mistral_api(prompt)
 
         # Nettoie la réponse
@@ -85,8 +87,14 @@ def analyze_memory_leak(
         analysis = json.loads(cleaned)
 
         # Validation basique
-        required_keys = ["leak_type", "diagnosis", "reasoning",
-                        "resolution_principle", "resolution_code", "explanations"]
+        required_keys = [
+            "leak_type",
+            "diagnosis",
+            "reasoning",
+            "resolution_principle",
+            "resolution_code",
+            "explanations",
+        ]
 
         for key in required_keys:
             if key not in analysis:
@@ -106,7 +114,10 @@ def analyze_memory_leak(
         return analysis
 
     except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON: {str(e)}", "raw": response if 'response' in locals() else 'N/A'}
+        return {
+            "error": f"Invalid JSON: {str(e)}",
+            "raw": response if "response" in locals() else "N/A",
+        }
     except Exception as e:
         return {"error": str(e)}
 
@@ -186,10 +197,7 @@ def _compress_trace(gdb_trace: list[dict]) -> list[dict]:
     """
 
     # Build signature list: (function, line) for each step.
-    signatures = [
-        (s.get("function", ""), s.get("line", 0))
-        for s in gdb_trace
-    ]
+    signatures = [(s.get("function", ""), s.get("line", 0)) for s in gdb_trace]
     n = len(signatures)
 
     result = []
@@ -202,10 +210,10 @@ def _compress_trace(gdb_trace: list[dict]) -> list[dict]:
 
         # Try sequence lengths from 2 to 20 lines.
         for seq_len in range(2, min(21, n - i + 1)):
-            pattern = signatures[i:i + seq_len]
+            pattern = signatures[i : i + seq_len]
             count = 1
             j = i + seq_len
-            while j + seq_len <= n and signatures[j:j + seq_len] == pattern:
+            while j + seq_len <= n and signatures[j : j + seq_len] == pattern:
                 count += 1
                 j += seq_len
             # Keep the best (most total lines compressed).
@@ -218,11 +226,13 @@ def _compress_trace(gdb_trace: list[dict]) -> list[dict]:
             for k in range(i, i + best_len):
                 result.append({"type": "line", "step": gdb_trace[k]})
             # Emit compression marker for the rest.
-            result.append({
-                "type": "repeat",
-                "length": best_len,
-                "count": best_count - 1,
-            })
+            result.append(
+                {
+                    "type": "repeat",
+                    "length": best_len,
+                    "count": best_count - 1,
+                }
+            )
             i += best_len * best_count
         else:
             result.append({"type": "line", "step": gdb_trace[i]})
@@ -234,7 +244,7 @@ def _compress_trace(gdb_trace: list[dict]) -> list[dict]:
 def _build_prompt(
     error_data: ValgrindError,
     code_context: str,
-    root_cause: Optional[RootCauseInfo] = None
+    root_cause: Optional[RootCauseInfo] = None,
 ) -> str:
     """
     Build the prompt for Mistral API.
@@ -250,13 +260,13 @@ def _build_prompt(
 
     # Type de leak en texte
     type_labels = {
-    1: "Type 1: Memory was never freed",
-    2: "Type 2: Pointer was lost before freeing memory",
-    3: "Type 3: Container was freed before its content"
+        1: "Type 1: Memory was never freed",
+        2: "Type 2: Pointer was lost before freeing memory",
+        3: "Type 3: Container was freed before its content",
     }
 
     # Infos root cause
-    gdb_trace = root_cause.get('gdb_trace') if root_cause else None
+    gdb_trace = root_cause.get("gdb_trace") if root_cause else None
 
     if root_cause:
         root_cause_section = f"""
@@ -264,14 +274,14 @@ def _build_prompt(
 ROOT CAUSE (identified by analysis)
 ====================================================
 
-{type_labels.get(root_cause['type'], 'Unknown type')}
+{type_labels.get(root_cause["type"], "Unknown type")}
 
-File      : {root_cause.get('file', 'unknown')}
-Function  : {root_cause['function']}()
-Line      : {str(root_cause['line']).strip()}
+File      : {root_cause.get("file", "unknown")}
+Function  : {root_cause["function"]}()
+Line      : {str(root_cause["line"]).strip()}
 
 Memory path:
-{_format_steps(root_cause.get('steps', []))}
+{_format_steps(root_cause.get("steps", []))}
 """
     else:
         root_cause_section = """
@@ -300,7 +310,9 @@ Use this trace as the primary source to understand what happened.
 
     # Source code section label depends on whether we have a trace
     if gdb_trace:
-        source_code_label = "SOURCE CODE (full functions for context — use for proposing fixes)"
+        source_code_label = (
+            "SOURCE CODE (full functions for context — use for proposing fixes)"
+        )
     else:
         source_code_label = "SOURCE CODE"
 
@@ -310,10 +322,10 @@ Use this trace as the primary source to understand what happened.
 VALGRIND REPORT
 ====================================================
 
-{error_data.get('bytes', '?')} bytes in {error_data.get('blocks', '?')} blocks are {error_data.get('type', 'definitely lost')}
-Allocation function: {error_data.get('function', 'unknown')}()
-File: {error_data.get('file', 'unknown')}
-Line: {error_data.get('line', '?')}
+{error_data.get("bytes", "?")} bytes in {error_data.get("blocks", "?")} blocks are {error_data.get("type", "definitely lost")}
+Allocation function: {error_data.get("function", "unknown")}()
+File: {error_data.get("file", "unknown")}
+Line: {error_data.get("line", "?")}
 {execution_trace_section}
 ====================================================
 {source_code_label}
@@ -338,7 +350,7 @@ JSON FORMAT (only, no text around)
 ====================================================
 
 {{
-  "leak_type": {root_cause['type'] if root_cause else 1},
+  "leak_type": {root_cause["type"] if root_cause else 1},
   "diagnosis": "<clear explanation of the problem in 2-3 sentences>",
   "reasoning": [
     "Transform each step from 'Memory path' above into a clear, factual sentence",
@@ -347,10 +359,10 @@ JSON FORMAT (only, no text around)
     "Keep it factual and descriptive, not pedagogical"
   ],
   "real_cause": {{
-    "file": "{root_cause.get('file', 'unknown') if root_cause else 'unknown'}",
-    "function": "{root_cause['function'] if root_cause else 'unknown'}",
+    "file": "{root_cause.get("file", "unknown") if root_cause else "unknown"}",
+    "function": "{root_cause["function"] if root_cause else "unknown"}",
     "owner": "<variable that should have freed the memory>",
-    "root_cause_code": "{str(root_cause['line']).strip() if root_cause else ''}",
+    "root_cause_code": "{str(root_cause["line"]).strip() if root_cause else ""}",
     "root_cause_comment": "<why this line causes the leak>",
     "contributing_codes": [
       {{"code": "<important line>", "comment": "<its role in the leak>"}},
@@ -394,13 +406,7 @@ def _call_mistral_api(prompt: str) -> str:
     """
     try:
         response = _get_client().chat.complete(
-            model="mistral-small-latest",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+            model="mistral-small-latest", messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content
 

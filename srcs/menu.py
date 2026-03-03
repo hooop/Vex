@@ -4,6 +4,7 @@
 menu.py
 Interactive menu system with arrow key navigation.
 """
+
 import sys
 import tty
 import termios
@@ -38,18 +39,18 @@ def read_key(hotkeys=None):
         char = sys.stdin.read(1)
 
         # ENTER key
-        if char == '\r' or char == '\n':
+        if char == "\r" or char == "\n":
             return "enter"
 
         # ESC sequence (arrows)
-        if char == '\x1b':
+        if char == "\x1b":
             # Read next 2 bytes
             bracket = sys.stdin.read(1)  # '['
-            arrow = sys.stdin.read(1)    # 'A' or 'B'
+            arrow = sys.stdin.read(1)  # 'A' or 'B'
 
-            if arrow == 'A':
+            if arrow == "A":
                 return "up"
-            elif arrow == 'B':
+            elif arrow == "B":
                 return "down"
 
         # Hotkey shortcuts
@@ -67,21 +68,21 @@ def read_key(hotkeys=None):
 def display_menu(options, selected_index):
     """
     Display menu with selected option highlighted.
-    
+
     Args:
         options: List of menu options (strings)
         selected_index: Index of currently selected option
     """
     # Clear from cursor down
     print("\033[J", end="")
-    
+
     # Display all options
     for i, option in enumerate(options):
         if i == selected_index:
             print(f" {DARK_GREEN}‣{RESET} {option}")
         else:
             print(f"   {option}")
-    
+
     sys.stdout.flush()
 
 
@@ -100,16 +101,16 @@ def _read_raw_key(hotkeys=None):
 
     char = sys.stdin.read(1)
 
-    if char == '\x1b':
+    if char == "\x1b":
         bracket = sys.stdin.read(1)
         arrow = sys.stdin.read(1)
-        if arrow == 'A':
+        if arrow == "A":
             return "up"
-        elif arrow == 'B':
+        elif arrow == "B":
             return "down"
         return None
 
-    if char == '\r' or char == '\n':
+    if char == "\r" or char == "\n":
         return "enter"
 
     if hotkeys and char.lower() in hotkeys:
@@ -151,10 +152,12 @@ def animate_block_reveal(text, delay=0.015, hotkeys=None):
                 return key
 
             color = colors[(color_counter // color_speed) % 2]
-            blocks = '▉' * i
+            blocks = "▉" * i
             remaining_text = text[i:]
 
-            sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {color}{blocks}{RESET}{remaining_text}")
+            sys.stdout.write(
+                f"\r\033[K {DARK_GREEN}‣{RESET} {color}{blocks}{RESET}{remaining_text}"
+            )
             sys.stdout.flush()
             time.sleep(delay)
             color_counter += 1
@@ -170,9 +173,11 @@ def animate_block_reveal(text, delay=0.015, hotkeys=None):
 
             color = colors[(color_counter // color_speed) % 2]
             revealed_text = text[:i]
-            blocks = '▉' * (length - i)
+            blocks = "▉" * (length - i)
 
-            sys.stdout.write(f"\r\033[K {DARK_GREEN}‣{RESET} {revealed_text}{color}{blocks}{RESET}")
+            sys.stdout.write(
+                f"\r\033[K {DARK_GREEN}‣{RESET} {revealed_text}{color}{blocks}{RESET}"
+            )
             sys.stdout.flush()
             time.sleep(delay)
             color_counter += 1
@@ -235,7 +240,9 @@ def interactive_menu(options, hotkeys=None):
                 lines_to_move_up = menu_lines - selected
                 print(f"\033[{lines_to_move_up}A\033[1G", end="")
 
-                interrupted_key = animate_block_reveal(options[selected], hotkeys=hotkeys)
+                interrupted_key = animate_block_reveal(
+                    options[selected], hotkeys=hotkeys
+                )
 
                 # Return cursor below menu
                 print(f"\033[1G\033[{lines_to_move_up}B", end="")

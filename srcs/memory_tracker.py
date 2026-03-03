@@ -8,13 +8,18 @@ Analyzes code execution flow and tracks memory ownership.
 from typing import Optional
 
 from type_defs import (
-    TrackingEntry, RootCauseInfo, ProcessedFunction,
-    ExtractedFunction, TraceStep, FreeEvent,
+    TrackingEntry,
+    RootCauseInfo,
+    ProcessedFunction,
+    ExtractedFunction,
+    TraceStep,
+    FreeEvent,
 )
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
 
 def build_segments(path: str) -> list[str]:
     """Decompose a path into all its prefixes.
@@ -36,7 +41,7 @@ def build_segments(path: str) -> list[str]:
     segments = []
     # Split on ``->`` and ``[`` boundaries while keeping delimiters.
     # This produces tokens like: ``["arr", "[i]", "->", "next"]``.
-    tokens = re.split(r'(->|\[)', path)
+    tokens = re.split(r"(->|\[)", path)
 
     current = ""
     for token in tokens:
@@ -75,12 +80,13 @@ def extract_root(path: str) -> str:
     root = root.split("->")[0]
     return root
 
+
 def extract_free_argument(line: str) -> str:
     """Extract the argument from a free() call.
-    
+
     Args:
         line: Code line containing free() (e.g., "free(second->next);")
-        
+
     Returns:
         Freed variable name (e.g., "second->next")
     """
@@ -92,29 +98,29 @@ def extract_free_argument(line: str) -> str:
 
 def extract_return_value(line: str) -> str:
     """Extract the returned value from a return statement.
-    
+
     Args:
         line: Code line with return statement (e.g., "return n;", "return (n);")
-        
+
     Returns:
         Returned variable or expression (e.g., "n", "ptr->data")
     """
 
     content = line.replace("return", "", 1).replace(";", "").strip()
-    
+
     # Remove parentheses if present
     if content.startswith("(") and content.endswith(")"):
         content = content[1:-1].strip()
-    
+
     return content
 
 
 def extract_left_side(line: str) -> str:
     """Extract the left side of an assignment.
-    
+
     Args:
         line: Code line with assignment (e.g., "Node *second = head->next;")
-        
+
     Returns:
         Left-hand side variable name (e.g., "second", "head->next")
     """
@@ -125,17 +131,17 @@ def extract_left_side(line: str) -> str:
     if "*" in left_part:
         # Find the last * and take what's after
         last_star = left_part.rfind("*")
-        return left_part[last_star + 1:].strip()
+        return left_part[last_star + 1 :].strip()
 
     return left_part
 
 
 def extract_right_side(line: str) -> str:
     """Extract the right side of an assignment.
-    
+
     Args:
         line: Code line with assignment (e.g., "Node *second = head->next;")
-        
+
     Returns:
         Right-hand side value (e.g., "head->next", "NULL")
     """
@@ -148,11 +154,10 @@ def extract_right_side(line: str) -> str:
 # OPERATION DETECTION
 # =============================================================================
 
+
 def is_malloc(line: str) -> bool:
     """Check if line contains a heap allocation call."""
-    return ("malloc(" in line
-            or "calloc(" in line
-            or "strdup(" in line)
+    return "malloc(" in line or "calloc(" in line or "strdup(" in line
 
 
 def is_return(line: str) -> bool:
@@ -172,11 +177,11 @@ def is_null_assignment(line: str) -> bool:
 
 def is_alias(line: str, found_segment: str) -> bool:
     """Check if line creates an alias to tracked memory.
-    
+
     Args:
         line: Code line to analyze
         found_segment: Memory segment being tracked
-        
+
     Returns:
         True if line is an assignment with found_segment on right side (not NULL)
     """
@@ -193,11 +198,11 @@ def is_alias(line: str, found_segment: str) -> bool:
 
 def is_reassignment(line: str, found_segment: str) -> bool:
     """Check if line reassigns a tracked segment.
-    
+
     Args:
         line: Code line to analyze
         found_segment: Memory segment being tracked
-        
+
     Returns:
         True if line is an assignment with found_segment on left side
     """
@@ -208,11 +213,15 @@ def is_reassignment(line: str, found_segment: str) -> bool:
     left_side = line.split("=")[0]
     return found_segment in left_side
 
+
 # =============================================================================
 # SEGMENT MATCHING
 # =============================================================================
 
-def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple[bool, Optional[str], Optional[str], Optional[TrackingEntry], Optional[str]]:
+
+def find_segment_in_line(
+    line: str, tracking: dict[str, TrackingEntry]
+) -> tuple[bool, Optional[str], Optional[str], Optional[TrackingEntry], Optional[str]]:
     """
     Check if line manipulates any tracked segment.
 
@@ -248,7 +257,8 @@ def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple
     # but not a real assignment.  A real assignment has a standalone '='
     # not preceded or followed by =, !, <, >.
     import re
-    has_assignment = "=" in line and re.search(r'(?<![=!<>])=(?!=)', line)
+
+    has_assignment = "=" in line and re.search(r"(?<![=!<>])=(?!=)", line)
     if has_assignment:
         left = extract_left_side(line)
         right = extract_right_side(line)
@@ -265,13 +275,15 @@ def find_segment_in_line(line: str, tracking: dict[str, TrackingEntry]) -> tuple
 
     return (False, None, None, None, None)
 
+
 # =============================================================================
 # UPDATE RULES
 # =============================================================================
 
+
 def apply_init(line: str, tracking: dict[str, TrackingEntry]) -> None:
     """Create initial tracking structure from malloc line.
-    
+
     Args:
         line: Code line with malloc (e.g., "ptr = malloc(10);", "n->data = malloc(...);")
         tracking: Dictionary of tracked memory paths (modified in place)
@@ -281,17 +293,19 @@ def apply_init(line: str, tracking: dict[str, TrackingEntry]) -> None:
     root = extract_root(left_side)
 
     entry: TrackingEntry = {
-    "target": left_side,
-    "segments": build_segments(left_side),
-    "origin": None
+        "target": left_side,
+        "segments": build_segments(left_side),
+        "origin": None,
     }
 
     tracking[root] = entry
 
 
-def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str) -> None:
+def apply_return(
+    line: str, tracking: dict[str, TrackingEntry], caller_line: str
+) -> None:
     """Substitute local root with receiver in calling function.
-    
+
     Args:
         line: Return statement in callee (e.g., "return n;")
         tracking: Dictionary of tracked memory paths (modified in place)
@@ -318,9 +332,9 @@ def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str
     new_target = receiver + suffix
 
     new_entry: TrackingEntry = {
-    "target": new_target,
-    "segments": build_segments(new_target),
-    "origin": None  # This becomes the new canonical form
+        "target": new_target,
+        "segments": build_segments(new_target),
+        "origin": None,  # This becomes the new canonical form
     }
 
     # Remove old root, add new one
@@ -328,9 +342,14 @@ def apply_return(line: str, tracking: dict[str, TrackingEntry], caller_line: str
     tracking[new_root] = new_entry
 
 
-def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tracking: dict[str, TrackingEntry]) -> None:
+def apply_alias(
+    line: str,
+    aliased_segment: str,
+    source_entry: TrackingEntry,
+    tracking: dict[str, TrackingEntry],
+) -> None:
     """Add a new root that points to the same memory.
-    
+
     Args:
         line: Assignment creating alias (e.g., "Node *second = head->next;")
         aliased_segment: Memory segment being aliased (e.g., "head->next")
@@ -344,23 +363,25 @@ def apply_alias(line: str, aliased_segment: str, source_entry: TrackingEntry, tr
     suffix = source_entry["target"].replace(aliased_segment, "", 1)
 
     new_entry: TrackingEntry = {
-    "target": new_name + suffix,
-    "segments": build_segments(new_name + suffix),
-    "origin": aliased_segment
+        "target": new_name + suffix,
+        "segments": build_segments(new_name + suffix),
+        "origin": aliased_segment,
     }
 
     tracking[new_name] = new_entry
 
 
-def apply_reassignment(root_key: str, tracking: dict[str, TrackingEntry], line: str, function: str) -> Optional[RootCauseInfo]:
+def apply_reassignment(
+    root_key: str, tracking: dict[str, TrackingEntry], line: str, function: str
+) -> Optional[RootCauseInfo]:
     """Remove the concerned root (path is broken by reassignment).
-    
+
     Args:
         root_key: Key of the root being reassigned
         tracking: Dictionary of tracked memory paths (modified in place)
         line: Code line performing reassignment
         function: Function name where reassignment occurs
-        
+
     Returns:
         RootCauseInfo if tracking becomes empty (Type 2 leak), None otherwise
     """
@@ -374,15 +395,22 @@ def apply_reassignment(root_key: str, tracking: dict[str, TrackingEntry], line: 
                 "line": line,
                 "function": function,
                 "file": "",
-                "steps": []
+                "steps": [],
             }
 
     return None
 
 
-def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: str, tracking: dict[str, TrackingEntry], function: str) -> Optional[RootCauseInfo]:
+def apply_free(
+    line: str,
+    found_segment: str,
+    entry: TrackingEntry,
+    root_key: str,
+    tracking: dict[str, TrackingEntry],
+    function: str,
+) -> Optional[RootCauseInfo]:
     """Handle free() call and detect improper memory release.
-    
+
     Args:
         line: Code line with free() call
         found_segment: Memory segment being freed
@@ -390,9 +418,9 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
         root_key: Key of the root being freed
         tracking: Dictionary of tracked memory paths (modified in place)
         function: Function name where free occurs
-        
+
     Returns:
-        RootCauseInfo for Type 3 (freeing container before content) or Type 1 (never freed), 
+        RootCauseInfo for Type 3 (freeing container before content) or Type 1 (never freed),
         None otherwise
     """
 
@@ -400,14 +428,15 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
 
     # If target starts with free_arg + "->" or free_arg + "[",
     # we're freeing the container before its content.
-    if (entry["target"].startswith(free_arg + "->")
-            or entry["target"].startswith(free_arg + "[")):
+    if entry["target"].startswith(free_arg + "->") or entry["target"].startswith(
+        free_arg + "["
+    ):
         return {
             "leak_type": 3,
             "line": line,
             "function": function,
             "file": "",
-            "steps": []
+            "steps": [],
         }
 
     # Otherwise, remove this root
@@ -419,7 +448,7 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
             "line": line,
             "function": function,
             "file": "",
-            "steps": []
+            "steps": [],
         }
 
     return None
@@ -429,12 +458,15 @@ def apply_free(line: str, found_segment: str, entry: TrackingEntry, root_key: st
 # INTEGRATION HELPER
 # =============================================================================
 
-def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list[ProcessedFunction]:
+
+def convert_extracted_code(
+    extracted_functions: list[ExtractedFunction],
+) -> list[ProcessedFunction]:
     """Convert code_extractor output to memory_tracker input format.
-    
+
     Args:
         extracted_functions: List of extracted functions with numbered code lines
-        
+
     Returns:
         List of functions with parsed code lines ready for memory tracking
     """
@@ -442,34 +474,36 @@ def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list
 
     for func in extracted_functions:
         lines = []
-        valgrind_line = func['line']  # La ligne mentionnée par Valgrind
+        valgrind_line = func["line"]  # La ligne mentionnée par Valgrind
 
         # Parse the numbered code lines
-        for code_line in func['code'].split('\n'):
+        for code_line in func["code"].split("\n"):
             if not code_line.strip():
                 continue
 
             # Remove line number prefix "23: " → "actual code"
-            if ':' in code_line:
+            if ":" in code_line:
                 # Extract line number
-                colon_pos = code_line.index(':')
+                colon_pos = code_line.index(":")
                 line_num_str = code_line[:colon_pos].strip()
-                
+
                 # Skip lines before Valgrind line
                 if line_num_str.isdigit():
                     line_num = int(line_num_str)
                     if line_num < valgrind_line:
                         continue  # Skip this line
-                
-                actual_code = code_line[colon_pos + 1:]
+
+                actual_code = code_line[colon_pos + 1 :]
                 lines.append(actual_code)
 
-        result.append({
-            'function': func['function'],
-            'lines': lines,
-            'start_line': valgrind_line,
-            'file': func.get('file', 'unknown')
-        })
+        result.append(
+            {
+                "function": func["function"],
+                "lines": lines,
+                "start_line": valgrind_line,
+                "file": func.get("file", "unknown"),
+            }
+        )
 
     return result
 
@@ -478,7 +512,10 @@ def convert_extracted_code(extracted_functions: list[ExtractedFunction]) -> list
 # MAIN ALGORITHM
 # =============================================================================
 
-def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[RootCauseInfo]:
+
+def find_root_cause(
+    extracted_functions: list[ProcessedFunction],
+) -> Optional[RootCauseInfo]:
     """
     Main algorithm to find root cause of a memory leak.
 
@@ -501,8 +538,8 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
     # =========================================================================
 
     current_func = extracted_functions[0]
-    first_line = current_func['lines'][0]
-    current_file = current_func.get('file', 'unknown')
+    first_line = current_func["lines"][0]
+    current_file = current_func.get("file", "unknown")
 
     apply_init(first_line, tracking)
 
@@ -518,22 +555,22 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
     # =========================================================================
 
     while True:
-
         # Check if we finished current function
-        if line_index >= len(current_func['lines']):
-
+        if line_index >= len(current_func["lines"]):
             # If tracking non-empty, local variables are lost
             if tracking:
-                steps.append(f"END: {current_func['function']}() exits with unreleased memory")
-                
+                steps.append(
+                    f"END: {current_func['function']}() exits with unreleased memory"
+                )
+
                 return {
                     "leak_type": 2,
                     "line": "}",
-                    "function": current_func['function'],
+                    "function": current_func["function"],
                     "file": current_file,
-                    "steps": steps
+                    "steps": steps,
                 }
-    
+
             # Move to next function if available
             current_func_index += 1
 
@@ -543,24 +580,26 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
                 return {
                     "leak_type": 1,
                     "line": "end of program",
-                    "function": current_func['function'],
+                    "function": current_func["function"],
                     "file": current_file,
-                    "steps": steps
+                    "steps": steps,
                 }
 
             current_func = extracted_functions[current_func_index]
-            current_file = current_func.get('file', current_file)
+            current_file = current_func.get("file", current_file)
             line_index = 1  # Skip first line (consumed by return)
             continue
 
-        line = current_func['lines'][line_index]
-        func_name = current_func['function']
+        line = current_func["lines"][line_index]
+        func_name = current_func["function"]
 
         # =====================================================================
         # Check if line concerns us and get operation type
         # =====================================================================
 
-        found, root_key, found_segment, entry, operation = find_segment_in_line(line, tracking)
+        found, root_key, found_segment, entry, operation = find_segment_in_line(
+            line, tracking
+        )
 
         if not found:
             line_index += 1
@@ -573,7 +612,7 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
         if operation == "return":
             # Get first line of next function (the call)
             next_func = extracted_functions[current_func_index + 1]
-            caller_line = next_func['lines'][0]
+            caller_line = next_func["lines"][0]
 
             old_target = entry["target"]
             apply_return(line, tracking, caller_line)
@@ -581,24 +620,28 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
             # Log the return
             new_root = list(tracking.keys())[0]
             new_target = tracking[new_root]["target"]
-            steps.append(f"RETURN: {old_target} -> {new_target} in {next_func['function']}()")
+            steps.append(
+                f"RETURN: {old_target} -> {new_target} in {next_func['function']}()"
+            )
 
             # Move to next function, after the call line
             current_func_index += 1
             current_func = next_func
-            current_file = current_func.get('file', current_file)
+            current_file = current_func.get("file", current_file)
             line_index = 1  # Call line consumed by return
             continue
 
         if operation == "free":
             steps.append(f"FREE: {found_segment} in {func_name}()")
 
-            root_cause = apply_free(line, found_segment, entry, root_key, tracking, func_name)
+            root_cause = apply_free(
+                line, found_segment, entry, root_key, tracking, func_name
+            )
 
             if root_cause is not None:
                 root_cause["file"] = current_file
                 root_cause["steps"] = steps
-                
+
                 return root_cause
 
             line_index += 1
@@ -636,6 +679,7 @@ def find_root_cause(extracted_functions: list[ProcessedFunction]) -> Optional[Ro
 # TRACE-BASED ALGORITHM (GDB execution trace)
 # =============================================================================
 
+
 def find_root_cause_from_trace(
     trace: list[TraceStep],
     free_events: list[FreeEvent],
@@ -672,6 +716,7 @@ def find_root_cause_from_trace(
     # we can no longer follow it via the iterator variable.  Instead of
     # concluding Type 2, we continue to the end of the trace.
     traversal_cleared = False
+    structure_func: Optional[str] = None  # function where traversal happened
 
     # Track function transitions to detect RETURN operations.
     prev_function: Optional[str] = None
@@ -700,7 +745,11 @@ def find_root_cause_from_trace(
             # We just returned from a callee into a caller.
             # The current line should be the call/assignment site.
             _apply_return_mapping(
-                pending_return_var, code, tracking, steps, func,
+                pending_return_var,
+                code,
+                tracking,
+                steps,
+                func,
                 callee_func=prev_function,
             )
             pending_return_var = None
@@ -726,21 +775,33 @@ def find_root_cause_from_trace(
         # We require the previous step to be a closing brace to
         # distinguish true function exits from function *calls* (where
         # the function transitions forward into a callee).
-        if (prev_function is not None
-                and func != prev_function
-                and pending_return_var is None
-                and tracking
-                and i > 0
-                and trace[i - 1]["code"].strip() == "}"):
+        if (
+            prev_function is not None
+            and func != prev_function
+            and pending_return_var is None
+            and tracking
+            and i > 0
+            and trace[i - 1]["code"].strip() == "}"
+        ):
             lost_roots = [
-                rk for rk in tracking
-                if root_function.get(rk) == prev_function
+                rk for rk in tracking if root_function.get(rk) == prev_function
             ]
             if lost_roots:
+                # Remove roots local to the exiting function.
+                for rk in lost_roots:
+                    del tracking[rk]
+                    root_function.pop(rk, None)
+
+                # If other roots survive in the caller, the pointer
+                # is still reachable — continue tracking.
+                if tracking:
+                    prev_function = func
+                    i += 1
+                    continue
+
+                # No surviving roots → pointer truly lost.
                 rk = lost_roots[0]
-                steps.append(
-                    f"SCOPE_EXIT: {rk} lost at end of {prev_function}()"
-                )
+                steps.append(f"SCOPE_EXIT: {rk} lost at end of {prev_function}()")
                 prev_step = trace[i - 1]
                 return {
                     "leak_type": 2,
@@ -773,6 +834,42 @@ def find_root_cause_from_trace(
             continue
 
         # =================================================================
+        # STRUCTURE RE-TRACKING (after traversal cleared tracking)
+        # =================================================================
+        # When a linked-list traversal moved the iterator past the
+        # tracked node, tracking was emptied.  The memory is still
+        # inside the data structure.  Watch for the function to
+        # return the structure root so we can resume tracking.
+        if traversal_cleared and not tracking:
+            stripped = code.strip()
+            if func == structure_func \
+                    and stripped.startswith("return") \
+                    and stripped != "return ;" \
+                    and stripped != "return;":
+                ret_val = extract_return_value(code)
+                if ret_val:
+                    tracking[ret_val] = {
+                        "target": ret_val,
+                        "segments": build_segments(ret_val),
+                        "origin": None,
+                        "in_structure": True,
+                    }
+                    root_function[ret_val] = func
+                    pending_return_var = ret_val
+                    traversal_cleared = False
+                    structure_func = None
+                    steps.append(
+                        f"STRUCTURE: tracked memory returned as"
+                        f" part of {ret_val} from {func}()"
+                    )
+                    prev_function = func
+                    i += 1
+                    continue
+            prev_function = func
+            i += 1
+            continue
+
+        # =================================================================
         # PARAMETER MAPPING (pointer passed as function argument)
         # =================================================================
         # When the GDB tracer detects that a callee's parameter holds
@@ -788,7 +885,7 @@ def find_root_cause_from_trace(
                         # track "data[i]" and param is "arr", the
                         # new target becomes "arr[i]".
                         old_root = extract_root(ent["target"])
-                        suffix = ent["target"][len(old_root):]
+                        suffix = ent["target"][len(old_root) :]
                         new_target = param_name + suffix
 
                         new_entry: TrackingEntry = {
@@ -796,11 +893,13 @@ def find_root_cause_from_trace(
                             "segments": build_segments(new_target),
                             "origin": ent["target"],
                         }
+                        # Propagate structure flag through param mapping.
+                        if ent.get("in_structure"):
+                            new_entry["in_structure"] = True
                         tracking[param_name] = new_entry
                         root_function[param_name] = func
                         steps.append(
-                            f"PARAM: {ent['target']} passed as"
-                            f" {new_target} to {func}()"
+                            f"PARAM: {ent['target']} passed as {new_target} to {func}()"
                         )
                         break
 
@@ -809,8 +908,7 @@ def find_root_cause_from_trace(
         # =================================================================
         if free_idx < len(free_events):
             fe = free_events[free_idx]
-            if (fe["caller_function"] == func
-                    and fe["caller_line"] == step["line"]):
+            if fe["caller_function"] == func and fe["caller_line"] == step["line"]:
                 free_idx += 1
                 steps.append(f"FREE (indirect): in {func}()")
 
@@ -826,8 +924,9 @@ def find_root_cause_from_trace(
         # =================================================================
         # DETECT OPERATIONS ON THE TRACKED POINTER
         # =================================================================
-        found, root_key, found_segment, entry, operation = \
-            find_segment_in_line(code, tracking)
+        found, root_key, found_segment, entry, operation = find_segment_in_line(
+            code, tracking
+        )
 
         if not found:
             prev_function = func
@@ -847,6 +946,24 @@ def find_root_cause_from_trace(
         # FREE (direct ``free(ptr);`` in source)
         # -----------------------------------------------------------------
         if operation == "free":
+            # Structure root freed — tracked memory is still inside
+            # the data structure.  Remove this root and continue; if
+            # no other root survives, the scope-exit or end-of-trace
+            # fallback will catch it.
+            if entry.get("in_structure"):
+                steps.append(
+                    f"FREE: {found_segment} in {func}()"
+                    f" (structure root freed, tracked memory still inside)"
+                )
+                return {
+                    "leak_type": 3,
+                    "line": code.strip(),
+                    "line_number": step.get("line"),
+                    "function": func,
+                    "file": current_file,
+                    "steps": steps,
+                }
+
             # When freeing an indexed expression that matches the target
             # symbolically (e.g. ``free(arr[i])`` with target ``arr[i]``),
             # we cannot determine whether this specific loop iteration
@@ -858,10 +975,24 @@ def find_root_cause_from_trace(
                 i += 1
                 continue
 
-            steps.append(f"FREE: {found_segment} in {func}()")
+            # Detect if this free targets a container (Type 3).
+            free_arg = extract_free_argument(code)
+            if (entry["target"].startswith(free_arg + "->")
+                    or entry["target"].startswith(free_arg + "[")):
+                steps.append(
+                    f"FREE: {found_segment} in {func}()"
+                    f" (container freed, but {entry['target']} still inside)"
+                )
+            else:
+                steps.append(f"FREE: {found_segment} in {func}()")
 
             root_cause = apply_free(
-                code, found_segment, entry, root_key, tracking, func,
+                code,
+                found_segment,
+                entry,
+                root_key,
+                tracking,
+                func,
             )
             if root_cause is not None:
                 root_cause["file"] = current_file
@@ -902,13 +1033,11 @@ def find_root_cause_from_trace(
                 if right.startswith(found_segment + "->"):
                     if target.startswith(right):
                         # Target extends past right — collapse the path.
-                        suffix = target[len(right):]
+                        suffix = target[len(right) :]
                         new_target = found_segment + suffix
                         entry["target"] = new_target
                         entry["segments"] = build_segments(new_target)
-                        steps.append(
-                            f"TRAVERSE: {target} -> {new_target} in {func}()"
-                        )
+                        steps.append(f"TRAVERSE: {target} -> {new_target} in {func}()")
                     else:
                         # Iterator moved past the tracked node.  The
                         # memory is still in the data structure but we
@@ -918,6 +1047,7 @@ def find_root_cause_from_trace(
                         )
                         del tracking[root_key]
                         traversal_cleared = True
+                        structure_func = func
                     prev_function = func
                     i += 1
                     continue
@@ -932,7 +1062,8 @@ def find_root_cause_from_trace(
                 i += 1
                 continue
 
-            steps.append(f"REASSIGN: {found_segment} in {func}()")
+            right_val = extract_right_side(code) if "=" in code else "?"
+            steps.append(f"REASSIGN: {found_segment} = {right_val} in {func}()")
 
             root_cause = apply_reassignment(root_key, tracking, code, func)
             if root_cause is not None:
@@ -968,6 +1099,7 @@ def find_root_cause_from_trace(
 # =============================================================================
 # TRACE-SPECIFIC HELPERS
 # =============================================================================
+
 
 def _apply_return_mapping(
     returned_var: str,
@@ -1017,6 +1149,9 @@ def _apply_return_mapping(
         "segments": build_segments(new_target),
         "origin": None,
     }
+    # Propagate structure flag through return mapping.
+    if old_entry.get("in_structure"):
+        new_entry["in_structure"] = True
 
     del tracking[old_root]
     tracking[new_root] = new_entry
