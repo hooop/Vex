@@ -11,6 +11,9 @@
 
 VEX (Valgrind Error eXplorer) is a CLI tool that analyzes memory leaks in C programs. It combines Valgrind, GDB dynamic tracing, and Mistral AI to identify the root cause of each leak and explain how to fix it.
 
+<p align="left">
+  <img src="./assets/vex_home.png" alt="Vex home" width="600">
+</p>
 
 ## Why VEX?
 
@@ -24,6 +27,9 @@ Memory leak analysis is a domain where LLMs perform poorly when used alone. They
 
 The LLM never guesses ownership or simulates memory. It only explains what the deterministic analysis has already proven.
 
+<p align="left">
+  <img src="./assets/vex_analysis.png" alt="Valgrind Error Xplorer" width="600">
+</p>
 
 ## Installation
 
