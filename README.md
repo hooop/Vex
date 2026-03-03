@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="./assets/leax.png" alt="Leax Logo" width="400">
-</p>
-
-<h3 align="center">Deterministic memory leak analysis, explained by AI.</h3>
+<h3 align="left">Deterministic memory leak analysis, explained by AI.</h3>
 
 ---
 
