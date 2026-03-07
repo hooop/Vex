@@ -135,3 +135,8 @@ If Leax produces an incorrect diagnosis or fails on your code, [open an issue](h
 - **LLMs** handle explanation, pedagogy, and fix suggestions
 
 The goal isn't to replace Valgrind, but to make its output actionable for developers learning C.
+
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
